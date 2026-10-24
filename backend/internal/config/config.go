@@ -21,6 +21,7 @@ type Config struct {
 	PostgresMaxConns int32
 	PostgresMinConns int32
 	CORSAllowOrigins string
+	JWTSecret        string
 }
 
 // Load reads environment variables and populates Config with sensible defaults.
@@ -48,6 +49,7 @@ func Load() Config {
 		PostgresMaxConns: int32(getEnvInt("POSTGRES_MAX_CONNS", 25)),
 		PostgresMinConns: int32(getEnvInt("POSTGRES_MIN_CONNS", 5)),
 		CORSAllowOrigins: getEnv("CORS_ALLOW_ORIGINS", "*"),
+		JWTSecret:        getEnv("JWT_SECRET", "sofrapos-super-secret-jwt-key-2026-cc6433"),
 	}
 }
 
@@ -69,4 +71,3 @@ func getEnvInt(key string, fallback int) int {
 	}
 	return v
 }
-

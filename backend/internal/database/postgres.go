@@ -51,7 +51,7 @@ type Postgres struct {
 	pool *pgxpool.Pool
 }
 
-// NewPostgresPool creates a configured pgxpool.Pool, verifies connectivity, and ensures diagnostic schema exists.
+// NewPostgresPool creates a configured pgxpool.Pool, verifies connectivity, and runs migrations + seed.
 func NewPostgresPool(ctx context.Context, dsn string, maxConns, minConns int32) (*Postgres, error) {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -69,7 +69,7 @@ func NewPostgresPool(ctx context.Context, dsn string, maxConns, minConns int32) 
 		return nil, fmt.Errorf("create connection pool: %w", err)
 	}
 
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	if err := pool.Ping(pingCtx); err != nil {
@@ -78,24 +78,17 @@ func NewPostgresPool(ctx context.Context, dsn string, maxConns, minConns int32) 
 	}
 
 	pg := &Postgres{pool: pool}
-	if err := pg.ensureSchema(pingCtx); err != nil {
+	if err := pg.MigrateAndSeed(pingCtx); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("initialize schema: %w", err)
+		return nil, fmt.Errorf("migrate and seed schema: %w", err)
 	}
 
 	return pg, nil
 }
 
-func (p *Postgres) ensureSchema(ctx context.Context) error {
-	const query = `
-		CREATE TABLE IF NOT EXISTS connection_checks (
-			id BIGSERIAL PRIMARY KEY,
-			checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			latency_ms DOUBLE PRECISION NOT NULL DEFAULT 0
-		);
-	`
-	_, err := p.pool.Exec(ctx, query)
-	return err
+// Pool returns the underlying pgxpool.Pool.
+func (p *Postgres) Pool() *pgxpool.Pool {
+	return p.pool
 }
 
 // Health pings PostgreSQL and returns pool statistics.
@@ -149,7 +142,7 @@ func (p *Postgres) Diagnostics(ctx context.Context) (DiagnosticReport, error) {
 
 	query := `
 		WITH inserted AS (
-			INSERT INTO connection_checks (checked_at, latency_ms)
+			INSERT INTO "dz-connection-checks" (checked_at, latency_ms)
 			VALUES (NOW(), 0)
 			RETURNING id
 		)
@@ -158,7 +151,7 @@ func (p *Postgres) Diagnostics(ctx context.Context) (DiagnosticReport, error) {
 			current_database(),
 			current_user,
 			NOW(),
-			(SELECT COUNT(*) FROM connection_checks) + 1
+			(SELECT COUNT(*) FROM "dz-connection-checks") + 1
 	`
 
 	err := p.pool.QueryRow(diagCtx, query).Scan(
@@ -207,4 +200,3 @@ func (p *Postgres) Close() {
 		p.pool.Close()
 	}
 }
-

@@ -1,0 +1,25 @@
+DROP TRIGGER IF EXISTS trg_dz_audit_logs_immutable ON "dz-audit-logs";
+DROP FUNCTION IF EXISTS dz_prevent_audit_mutation();
+
+DROP TABLE IF EXISTS "dz-audit-logs" CASCADE;
+DROP TABLE IF EXISTS "dz-idempotency-keys" CASCADE;
+DROP TABLE IF EXISTS "dz-stock-counts" CASCADE;
+DROP TABLE IF EXISTS "dz-stock-movements" CASCADE;
+DROP TABLE IF EXISTS "dz-payments" CASCADE;
+DROP TABLE IF EXISTS "dz-shifts" CASCADE;
+DROP TABLE IF EXISTS "dz-coupons" CASCADE;
+DROP TABLE IF EXISTS "dz-campaigns" CASCADE;
+DROP TABLE IF EXISTS "dz-order-events" CASCADE;
+DROP TABLE IF EXISTS "dz-order-items" CASCADE;
+DROP TABLE IF EXISTS "dz-orders" CASCADE;
+DROP TABLE IF EXISTS "dz-recipes" CASCADE;
+DROP TABLE IF EXISTS "dz-menu-modifiers" CASCADE;
+DROP TABLE IF EXISTS "dz-menu-variants" CASCADE;
+DROP TABLE IF EXISTS "dz-menu-items" CASCADE;
+DROP TABLE IF EXISTS "dz-menu-categories" CASCADE;
+DROP TABLE IF EXISTS "dz-ingredients" CASCADE;
+DROP TABLE IF EXISTS "dz-tables" CASCADE;
+DROP TABLE IF EXISTS "dz-sk-users" CASCADE;
+DROP TABLE IF EXISTS "dz-branches" CASCADE;
+DROP TABLE IF EXISTS "dz-connection-checks" CASCADE;
+DROP TABLE IF EXISTS "dz-schema-migrations" CASCADE;
