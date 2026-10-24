@@ -1,0 +1,252 @@
+# ==============================================================================
+# SofraPOS — VS Code REST Client Koleksiyonu (requests.http)
+# Tüm demo hesapları için varsayılan parola: Sofra2026!
+# ==============================================================================
+
+@baseUrl = http://localhost:8080
+@password = Sofra2026!
+
+### 1. Sağlık ve Altyapı Kontrolleri (GET /health, GET /_hz/cc64, GET /metrics)
+GET {{baseUrl}}/health
+Accept: application/json
+
+###
+GET {{baseUrl}}/_hz/cc64
+Accept: application/json
+
+###
+GET {{baseUrl}}/api/v1/db/check
+Accept: application/json
+
+###
+GET {{baseUrl}}/metrics
+
+### 2. Demo Hesap Listesi
+GET {{baseUrl}}/api/v1/auth/demo-accounts
+Accept: application/json
+
+### 3. Giriş: Seed Kullanıcısı (seed.ceylan@ddo-case.invalid — Merkez Yönetim)
+# @name loginSeed
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "seed.ceylan@ddo-case.invalid",
+  "password": "{{password}}"
+}
+
+### 4. Giriş: Garson (waiter)
+# @name loginWaiter
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "garson@sofrapos.local",
+  "password": "{{password}}"
+}
+
+@waiterToken = {{loginWaiter.response.body.access_token}}
+
+### 5. Giriş: Kasiyer (cashier)
+# @name loginCashier
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "kasiyer@sofrapos.local",
+  "password": "{{password}}"
+}
+
+@cashierToken = {{loginCashier.response.body.access_token}}
+
+### 6. Giriş: Aşçı / Mutfak KDS (chef)
+# @name loginChef
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "asci@sofrapos.local",
+  "password": "{{password}}"
+}
+
+@chefToken = {{loginChef.response.body.access_token}}
+
+### 7. Giriş: Şube Müdürü (branch_manager)
+# @name loginManager
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "mudur@sofrapos.local",
+  "password": "{{password}}"
+}
+
+@managerToken = {{loginManager.response.body.access_token}}
+
+### 8. Giriş: Merkez Yönetim (hq_manager)
+# @name loginHQ
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "merkez@sofrapos.local",
+  "password": "{{password}}"
+}
+
+@hqToken = {{loginHQ.response.body.access_token}}
+
+### 9. Giriş: Müşteri / QR Menü (customer)
+# @name loginCustomer
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "musteri@sofrapos.local",
+  "password": "{{password}}"
+}
+
+@customerToken = {{loginCustomer.response.body.access_token}}
+
+### 10. Yetki İhlali Testi (Garson rolü Merkez Yönetim raporuna erişemez -> 403 Forbidden)
+GET {{baseUrl}}/api/v1/reports/hq
+Authorization: Bearer {{waiterToken}}
+
+### 11. F-1: Menü, Varyantlar ve Ek Seçenekler (Modifier) Listesi
+GET {{baseUrl}}/api/v1/menu
+Authorization: Bearer {{customerToken}}
+
+### 12. F-1: Yeni Menü Ürünü Ekleme (Idempotency-Key ile)
+POST {{baseUrl}}/api/v1/menu/items
+Authorization: Bearer {{managerToken}}
+Idempotency-Key: rest-client-menu-item-001
+Content-Type: application/json
+
+{
+  "category_id": 1,
+  "code": "MN-GAVURDAGI",
+  "name": "Cevizli Gavurdağı Salatası",
+  "description": "Nar ekşili ve bol cevizli taze salata",
+  "base_price_kurus": 12500,
+  "station": "cold",
+  "course": 1,
+  "prep_time_sec": 150
+}
+
+### 13. F-2: Şube Masalarını Listeleme
+GET {{baseUrl}}/api/v1/tables?branch_id=1
+Authorization: Bearer {{waiterToken}}
+
+### 14. F-2 & T-1: Masa Açma (Adisyon Oluşturma)
+# @name createOrder
+POST {{baseUrl}}/api/v1/orders
+Authorization: Bearer {{waiterToken}}
+Idempotency-Key: rest-client-open-table-1
+Content-Type: application/json
+
+{
+  "branch_id": 1,
+  "table_id": 1
+}
+
+@orderId = {{createOrder.response.body.id}}
+
+### 15. F-2 & T-4: Adisyona Varyantlı ve Modifier'lı Kalem Ekleme (İskender 1.5 Porsiyon + Ekstra Tereyağı)
+POST {{baseUrl}}/api/v1/orders/{{orderId}}/items
+Authorization: Bearer {{waiterToken}}
+Content-Type: application/json
+
+{
+  "menu_item_id": 1,
+  "quantity": 1,
+  "variant_id": 2,
+  "modifier_ids": [1]
+}
+
+### 16. T-5: Kampanya Tetiklemek İçin 3 Adet Lahmacun + 1 Ayran + 1 Künefe Ekleme
+POST {{baseUrl}}/api/v1/orders/{{orderId}}/items
+Authorization: Bearer {{waiterToken}}
+Content-Type: application/json
+
+{
+  "menu_item_id": 2,
+  "quantity": 3,
+  "variant_id": 4
+}
+
+### 17. T-1: Adisyon Olay Günlüğünden Yeniden Hesaplama Kanıtı (Rebuild)
+GET {{baseUrl}}/api/v1/orders/{{orderId}}/rebuild
+Authorization: Bearer {{waiterToken}}
+
+### 18. F-6 & T-5: Kampanya ve Kupon Motoru (En Avantajlı Kombinasyon Seçimi)
+POST {{baseUrl}}/api/v1/orders/{{orderId}}/apply-campaigns
+Authorization: Bearer {{cashierToken}}
+Content-Type: application/json
+
+{
+  "coupon_code": "SOFRA50",
+  "current_hour": 19
+}
+
+### 19. F-3 & T-3: Mutfak Ekranı (KDS) Aktif Siparişler
+GET {{baseUrl}}/api/v1/kds/items?branch_id=1&station=all
+Authorization: Bearer {{chefToken}}
+
+### 20. T-3: KDS SSE Kopma Sonrası Kaçırılan Olayları Geri Alma (Event Replay)
+GET {{baseUrl}}/api/v1/kds/events?branch_id=1&since_event_id=1
+Authorization: Bearer {{chefToken}}
+
+### 21. F-4 & T-2: Hesap Bölüşme Önizlemesi (3 Kişilik Eşit Bölüşme — Kuruş Kaymasız)
+POST {{baseUrl}}/api/v1/orders/{{orderId}}/split-preview
+Authorization: Bearer {{cashierToken}}
+Content-Type: application/json
+
+{
+  "split_mode": "EQUAL",
+  "parts": 3
+}
+
+### 22. F-4 & T-2: Karışık Ödeme (Nakit + Kart) ve Bahşiş
+POST {{baseUrl}}/api/v1/orders/{{orderId}}/payments
+Authorization: Bearer {{cashierToken}}
+Idempotency-Key: rest-client-payment-001
+Content-Type: application/json
+
+{
+  "method": "MIXED",
+  "split_mode": "MIXED",
+  "cash_amount_kurus": 15000,
+  "card_amount_kurus": 20000,
+  "tip_kurus": 2500
+}
+
+### 23. F-5 & T-4: Stok, Alt Reçete (Yarı Mamul) ve Hareketler
+GET {{baseUrl}}/api/v1/inventory?branch_id=1
+Authorization: Bearer {{managerToken}}
+
+### 24. F-5 & T-4: Gün Sonu Fiziksel Stok Sayımı ve Fark (Variance) Raporu
+POST {{baseUrl}}/api/v1/inventory/count
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "branch_id": 1,
+  "counts": [
+    { "ingredient_code": "ING-BEEF", "counted_grams": 48500 },
+    { "ingredient_code": "ING-TOMATO", "counted_grams": 49100 }
+  ]
+}
+
+### 25. F-7 & T-2: Şube Z Raporu (Nakit + Kart = Toplam Mutabakatı)
+GET {{baseUrl}}/api/v1/reports/z-report?branch_id=1
+Authorization: Bearer {{managerToken}}
+
+### 26. F-7: 8 Şube Merkez Yönetim Raporu
+GET {{baseUrl}}/api/v1/reports/hq
+Authorization: Bearer {{hqToken}}
+
+### 27. Ortak Gereksinim: Append-Only Denetim Kayıtları (Keyset Sayfalama)
+GET {{baseUrl}}/api/v1/audit-logs?after_id=0&limit=20
+Authorization: Bearer {{hqToken}}
+
+### 28. Demo Verisini İlk Seed Haline Sıfırlama (make reset-demo)
+POST {{baseUrl}}/api/v1/admin/reset-demo
