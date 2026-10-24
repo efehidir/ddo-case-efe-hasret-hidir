@@ -1,0 +1,117 @@
+name: CI — Build, Test, Lint & Container Images
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  backend-ci:
+    name: Backend (Go 1.23) — Lint, Test & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.23'
+          cache-dependency-path: backend/go.sum
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: ./backend
+
+      - name: Run unit tests with race detector
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Build binary
+        run: CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/ddo-api ./cmd/api
+
+  frontend-ci:
+    name: Frontend (SvelteKit) — Lint, Test & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run SvelteKit typecheck & lint
+        run: npm run lint
+
+      - name: Run unit tests (Vitest)
+        run: npm test
+
+      - name: Build production bundle (adapter-node)
+        run: npm run build
+
+  docker-build-and-smoke:
+    name: Docker Multi-Stage Build & Compose Health Smoke Test
+    runs-on: ubuntu-latest
+    needs: [backend-ci, frontend-ci]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          load: true
+          tags: ddo-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Frontend Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          load: true
+          tags: ddo-frontend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start stack with Docker Compose and verify healthchecks
+        run: |
+          cp .env.example .env
+          docker compose up -d --build --wait
+          curl -fsS http://localhost:8080/health | grep '"status":"healthy"'
+          curl -fsS http://localhost:8080/api/v1/db/check | grep '"connected":true'
+          curl -fsS http://localhost:8080/metrics | grep 'http_requests_total'
+          curl -fsS http://localhost:8080/openapi.json | grep '"openapi":"3.0.3"'
+          curl -fsS http://localhost:3000/health | grep '"status":"healthy"'
+          docker compose down -v
+

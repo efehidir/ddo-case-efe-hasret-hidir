@@ -1,0 +1,226 @@
+openapi: 3.0.3
+info:
+  title: DDO Referans Altyapı API (Go Fiber + PostgreSQL 16)
+  description: |
+    Go (1.22+) ve Fiber çatısı üzerinde çalışan, PostgreSQL 16 (`pgx/v5`) bağlantı havuzu,
+    sağlık kontrolü (`/health`), veritabanı tanılama (`/api/v1/db/check`) ve Prometheus
+    metriklerini (`/metrics`) sunan referans servis API dokümantasyonu.
+  version: 1.0.0
+  contact:
+    name: Altyapı Ekibi
+servers:
+  - url: http://localhost:8080
+    description: Yerel Docker Compose / Geliştirme Sunucusu
+tags:
+  - name: Health
+    description: Servis ve veritabanı sağlık kontrolleri
+  - name: Database
+    description: PostgreSQL 16 bağlantı ve havuz tanılama uçları
+  - name: Observability
+    description: Prometheus metrikleri ve OpenAPI spesifikasyonu
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Servis ve PostgreSQL bağlantı sağlığını döner
+      description: |
+        Uygulamanın çalışma durumunu, çalışma süresini (uptime) ve `pgxpool` üzerinden
+        PostgreSQL 16 bağlantı sağlığını kontrol eder. Veritabanı erişilemez olduğunda
+        `503 Service Unavailable` döner.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Servis ve veritabanı sağlıklı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Veritabanı bağlantısı başarısız veya servis sağlıksız
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/v1/db/check:
+    get:
+      tags:
+        - Database
+      summary: Aktif PostgreSQL 16 sorgusu ve bağlantı havuzu tanılaması çalıştırır
+      description: |
+        PostgreSQL 16 üzerinde canlı bir tanılama sorgusu (`version()`, `current_database()`,
+        `current_user`, `NOW()`) çalıştırır, kontrol sayacını günceller ve `pgx/v5` havuz
+        telemetrisini döner.
+      operationId: checkDatabaseConnection
+      responses:
+        '200':
+          description: Veritabanı sorgusu başarıyla tamamlandı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseDiagnosticResponse'
+        '503':
+          description: Veritabanı sorgusu başarısız oldu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseDiagnosticResponse'
+  /metrics:
+    get:
+      tags:
+        - Observability
+      summary: Prometheus formatında metrikleri döner
+      description: |
+        Go çalışma zamanı (runtime), süreç (process), HTTP istek sayaçları/gecikme histogramları
+        ve PostgreSQL sağlık metriklerini Prometheus metin formatında döner.
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Prometheus metrik çıktısı
+          content:
+            text/plain:
+              schema:
+                type: string
+  /openapi.yaml:
+    get:
+      tags:
+        - Observability
+      summary: OpenAPI 3.0.3 YAML spesifikasyonu
+      operationId: getOpenAPIYAML
+      responses:
+        '200':
+          description: OpenAPI YAML dosyası
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /openapi.json:
+    get:
+      tags:
+        - Observability
+      summary: OpenAPI 3.0.3 JSON spesifikasyonu
+      operationId: getOpenAPIJSON
+      responses:
+        '200':
+          description: OpenAPI JSON dosyası
+          content:
+            application/json:
+              schema:
+                type: object
+components:
+  schemas:
+    PoolStats:
+      type: object
+      required:
+        - total_conns
+        - idle_conns
+        - acquired_conns
+        - max_conns
+      properties:
+        total_conns:
+          type: integer
+          example: 5
+        idle_conns:
+          type: integer
+          example: 4
+        acquired_conns:
+          type: integer
+          example: 1
+        max_conns:
+          type: integer
+          example: 25
+    DatabaseHealth:
+      type: object
+      required:
+        - status
+        - driver
+        - latency_ms
+        - pool
+      properties:
+        status:
+          type: string
+          enum: [up, down]
+          example: up
+        driver:
+          type: string
+          example: pgx/v5
+        latency_ms:
+          type: number
+          format: double
+          example: 0.42
+        pool:
+          $ref: '#/components/schemas/PoolStats'
+        error:
+          type: string
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+        - version
+        - environment
+        - timestamp
+        - uptime_seconds
+        - database
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded]
+          example: healthy
+        service:
+          type: string
+          example: ddo-backend
+        version:
+          type: string
+          example: 1.0.0
+        environment:
+          type: string
+          example: production
+        timestamp:
+          type: string
+          format: date-time
+        uptime_seconds:
+          type: number
+          format: double
+          example: 128.4
+        database:
+          $ref: '#/components/schemas/DatabaseHealth'
+    DatabaseDiagnosticResponse:
+      type: object
+      required:
+        - connected
+        - driver
+        - latency_ms
+        - pool
+      properties:
+        connected:
+          type: boolean
+          example: true
+        driver:
+          type: string
+          example: pgx/v5
+        server_version:
+          type: string
+          example: PostgreSQL 16.4 on x86_64-pc-linux-musl
+        current_database:
+          type: string
+          example: ddo_db
+        current_user:
+          type: string
+          example: ddo_user
+        server_time:
+          type: string
+          format: date-time
+        latency_ms:
+          type: number
+          format: double
+          example: 1.15
+        total_checks:
+          type: integer
+          format: int64
+          example: 12
+        pool:
+          $ref: '#/components/schemas/PoolStats'
+        error:
+          type: string
+

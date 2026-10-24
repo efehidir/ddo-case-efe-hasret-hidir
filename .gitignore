@@ -1,0 +1,26 @@
+# Ortam değişkenleri
+.env
+.env.local
+.env.*.local
+
+# Go
+backend/bin/
+backend/dist/
+backend/coverage.out
+backend/*.test
+
+# Frontend (SvelteKit / Node)
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
