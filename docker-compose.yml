@@ -30,7 +30,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     image: ddo-backend:latest
-    container_name: ddo-marul-api
+    container_name: ddo-backend
     restart: unless-stopped
     environment:
       APP_ENV: ${APP_ENV:-production}
@@ -46,6 +46,7 @@ services:
       POSTGRES_MIN_CONNS: ${POSTGRES_MIN_CONNS:-5}
       DATABASE_URL: ${DATABASE_URL:-postgres://ddo_user:ddo_secret_password_2026@postgres:5432/ddo_db?sslmode=disable}
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      JWT_SECRET: ${JWT_SECRET:-sofrapos-super-secret-jwt-key-2026-cc6433}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:
@@ -58,6 +59,27 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 5s
+
+  simulator:
+    image: ddo-backend:latest
+    container_name: ddo-simulator
+    restart: unless-stopped
+    entrypoint: ["/app/simulator"]
+    environment:
+      API_URL: http://backend:8080
+      SIMULATOR_SEED: ${SIMULATOR_SEED:-42}
+      SIMULATOR_INTERVAL_SEC: ${SIMULATOR_INTERVAL_SEC:-6}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ddo_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f /app/simulator || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
       start_period: 5s
 
   frontend:
@@ -84,11 +106,28 @@ services:
     networks:
       - ddo_internal
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/healthz"]
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 5s
+
+  verify:
+    image: ddo-backend:latest
+    container_name: ddo-verify
+    profiles:
+      - verify
+    entrypoint: ["/app/verify"]
+    environment:
+      API_URL: http://backend:8080
+      FRONTEND_URL: http://frontend:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    networks:
+      - ddo_internal
 
 networks:
   ddo_internal:
