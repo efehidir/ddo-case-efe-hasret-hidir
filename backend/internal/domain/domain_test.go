@@ -639,3 +639,83 @@ func TestT2_CalculateItemSplit_DuplicateIDsIgnored(t *testing.T) {
 		t.Errorf("expected 11000 when duplicate IDs passed, got %d (err=%v)", sum, err)
 	}
 }
+
+func TestT1_RebuildOrderStateFromEvents_InvalidJSONPayloads(t *testing.T) {
+	badEvents := [][]domain.OrderEvent{
+		{{ID: 1, OrderID: 1, EventType: domain.EventItemAdded, Payload: json.RawMessage(`{bad`)}},
+		{{ID: 1, OrderID: 1, EventType: domain.EventItemCancelled, Payload: json.RawMessage(`{bad`)}},
+		{{ID: 1, OrderID: 1, EventType: domain.EventTableMoved, Payload: json.RawMessage(`{bad`)}},
+		{{ID: 1, OrderID: 1, EventType: domain.EventTableMerged, Payload: json.RawMessage(`{bad`)}},
+		{{ID: 1, OrderID: 1, EventType: domain.EventCampaignApplied, Payload: json.RawMessage(`{bad`)}},
+		{{ID: 1, OrderID: 1, EventType: domain.EventPaymentReceived, Payload: json.RawMessage(`{bad`)}},
+	}
+	for i, evs := range badEvents {
+		if _, err := domain.RebuildOrderStateFromEvents(evs); err == nil {
+			t.Errorf("case %d: expected error for malformed event JSON", i)
+		}
+	}
+}
+
+func TestT2_CalculateEqualSplit_SevenWaysPrimeAmount(t *testing.T) {
+	shares, err := domain.CalculateEqualSplit(25003, 7)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var sum int64
+	for _, s := range shares {
+		sum += s
+	}
+	if sum != 25003 {
+		t.Errorf("expected exact sum 25003 across 7 ways, got %d", sum)
+	}
+}
+
+func TestT2_ReconcileZReport_DetectImbalance(t *testing.T) {
+	payments := []domain.PaymentRecord{
+		{ID: 1, OrderID: 1, Method: "CASH", AmountKurus: 5000},
+	}
+	rep := domain.ReconcileZReport(payments, 9000)
+	if rep.IsBalanced {
+		t.Errorf("expected IsBalanced=false when closed orders net total (9000) != payments (5000)")
+	}
+}
+
+func TestT3_KDSBroker_DefaultCapacity(t *testing.T) {
+	b := domain.NewKDSBroker(0)
+	b.Publish(domain.KDSStreamEvent{EventID: 1, BranchID: 2, Station: "bar"})
+	evs := b.ReplaySince(2, 0, "bar")
+	if len(evs) != 1 || evs[0].EventID != 1 {
+		t.Errorf("expected 1 event from default capacity broker")
+	}
+}
+
+func TestT4_ResolveRecipeTree_MultipleItemsAndModifiers(t *testing.T) {
+	edges := []domain.RecipeEdge{
+		{MenuItemID: 5, IngredientCode: "ING-CHEESE", QtyGrams: 60},
+		{MenuItemID: 5, IngredientCode: "ING-PISTACHIO", QtyGrams: 35},
+	}
+	reqs, err := domain.ResolveRecipeTree(5, 3, 180, []domain.ModifierRecipeEffect{
+		{Name: "Ekstra Fıstık", IngredientCode: "ING-PISTACHIO", ExtraQtyGrams: 25},
+	}, edges)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(reqs) != 2 {
+		t.Fatalf("expected 2 requirements, got %d", len(reqs))
+	}
+}
+
+func TestT5_EvaluateBestCampaigns_PercentageCouponCappedAtMax(t *testing.T) {
+	basket := []domain.BasketItem{
+		{MenuItemCode: "MN-ISKENDER", ItemName: "İskender", Quantity: 5, UnitPriceKurus: 36000, LineSubtotalKurus: 180000},
+	}
+	coupon := &domain.CouponRule{
+		Code: "VIP20", DiscountType: "PERCENT", DiscountValue: 20,
+		MinOrderKurus: 50000, MaxDiscountKurus: 25000, Stackable: false, IsActive: true,
+	}
+	// 20% of 180000 = 36000, but capped at MaxDiscountKurus = 25000
+	res := domain.EvaluateBestCampaigns(basket, nil, coupon, 20)
+	if res.TotalDiscountKurus != 25000 {
+		t.Errorf("expected capped discount 25000, got %d", res.TotalDiscountKurus)
+	}
+}

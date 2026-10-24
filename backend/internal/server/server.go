@@ -25,40 +25,59 @@ type HealthResponse struct {
 	Database      database.HealthReport `json:"database"`
 }
 
-// New creates and configures a Fiber HTTP server with health, DB check, OpenAPI, and Prometheus routes.
+// New creates and configures a Fiber HTTP server with SofraPOS routes, health, OpenAPI, and Prometheus metrics.
 func New(cfg config.Config, db database.Probe) *fiber.App {
 	startedAt := time.Now()
 	collector := metrics.NewCollector()
 
 	app := fiber.New(fiber.Config{
-		AppName:               "ddo-backend",
+		AppName:               "sofrapos-backend",
 		DisableStartupMessage: true,
-		ReadTimeout:           10 * time.Second,
-		WriteTimeout:          10 * time.Second,
-		IdleTimeout:           30 * time.Second,
+		ReadTimeout:           15 * time.Second,
+		WriteTimeout:          30 * time.Second,
+		IdleTimeout:           60 * time.Second,
 	})
 
 	app.Use(recover.New())
+
+	// Mandatory header on every HTTP response: X-DDO-Case: cc6433
+	app.Use(func(c *fiber.Ctx) error {
+		c.Set("X-DDO-Case", "cc6433")
+		return c.Next()
+	})
+
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: cfg.CORSAllowOrigins,
-		AllowMethods: "GET,OPTIONS",
-		AllowHeaders: "Origin,Content-Type,Accept",
+		AllowOrigins:  cfg.CORSAllowOrigins,
+		AllowMethods:  "GET,POST,PATCH,PUT,DELETE,OPTIONS",
+		AllowHeaders:  "Origin,Content-Type,Accept,Authorization,Idempotency-Key,Last-Event-ID",
+		ExposeHeaders: "X-DDO-Case,X-Idempotent-Replay",
 	}))
 	app.Use(collector.Middleware())
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"service":     "ddo-backend",
+			"service":     "sofrapos-backend",
+			"case":        "cc6433",
 			"version":     cfg.AppVersion,
 			"environment": cfg.AppEnv,
 			"endpoints": fiber.Map{
 				"health":       "/health",
+				"hz_cc64":      "/_hz/cc64",
 				"db_check":     "/api/v1/db/check",
 				"metrics":      "/metrics",
 				"docs":         "/docs",
 				"openapi_yaml": "/openapi.yaml",
 				"openapi_json": "/openapi.json",
+				"pos_api":      "/api/v1",
 			},
+		})
+	})
+
+	// Additional health endpoint required by internal spec: GET /_hz/cc64
+	app.Get("/_hz/cc64", func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"status": "ok",
+			"case":   "cc6433",
 		})
 	})
 
@@ -76,7 +95,7 @@ func New(cfg config.Config, db database.Probe) *fiber.App {
 
 		return c.Status(httpCode).JSON(HealthResponse{
 			Status:        status,
-			Service:       "ddo-backend",
+			Service:       "sofrapos-backend",
 			Version:       cfg.AppVersion,
 			Environment:   cfg.AppEnv,
 			Timestamp:     time.Now().UTC(),
@@ -99,6 +118,8 @@ func New(cfg config.Config, db database.Probe) *fiber.App {
 
 	openapi.RegisterRoutes(app)
 
+	posService := NewPOSService(cfg, db)
+	posService.RegisterPOSRoutes(app)
+
 	return app
 }
-

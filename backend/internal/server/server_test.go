@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/efehidir/ddo/backend/internal/auth"
 	"github.com/efehidir/ddo/backend/internal/config"
 	"github.com/efehidir/ddo/backend/internal/database"
 	"github.com/efehidir/ddo/backend/internal/server"
@@ -71,7 +72,7 @@ func (m *mockProbe) Diagnostics(_ context.Context) (database.DiagnosticReport, e
 
 func (m *mockProbe) Close() {}
 
-func TestHealthEndpoint_Healthy(t *testing.T) {
+func TestHealthEndpoint_HealthyAndHeader(t *testing.T) {
 	cfg := config.Load()
 	app := server.New(cfg, &mockProbe{fail: false})
 
@@ -86,6 +87,10 @@ func TestHealthEndpoint_Healthy(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", resp.StatusCode)
 	}
 
+	if gotHeader := resp.Header.Get("X-DDO-Case"); gotHeader != "cc6433" {
+		t.Errorf("expected X-DDO-Case header 'cc6433', got %q", gotHeader)
+	}
+
 	var payload server.HealthResponse
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatalf("failed to decode JSON: %v", err)
@@ -96,6 +101,25 @@ func TestHealthEndpoint_Healthy(t *testing.T) {
 	}
 	if payload.Database.Status != "up" {
 		t.Errorf("expected database status 'up', got %q", payload.Database.Status)
+	}
+}
+
+func TestHzCC64Endpoint(t *testing.T) {
+	cfg := config.Load()
+	app := server.New(cfg, &mockProbe{fail: false})
+
+	req := httptest.NewRequest(http.MethodGet, "/_hz/cc64", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200 on /_hz/cc64, got %d", resp.StatusCode)
+	}
+	if gotHeader := resp.Header.Get("X-DDO-Case"); gotHeader != "cc6433" {
+		t.Errorf("expected X-DDO-Case header 'cc6433', got %q", gotHeader)
 	}
 }
 
@@ -155,11 +179,52 @@ func TestDatabaseCheckEndpoint(t *testing.T) {
 	}
 }
 
+func TestDemoAccountsAndRBACProtection(t *testing.T) {
+	cfg := config.Load()
+	app := server.New(cfg, &mockProbe{fail: false})
+
+	// 1. Demo accounts list includes seed.ceylan@ddo-case.invalid
+	demoReq := httptest.NewRequest(http.MethodGet, "/api/v1/auth/demo-accounts", nil)
+	demoResp, err := app.Test(demoReq, -1)
+	if err != nil || demoResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on /api/v1/auth/demo-accounts")
+	}
+	bodyBytes, _ := io.ReadAll(demoResp.Body)
+	_ = demoResp.Body.Close()
+	if !strings.Contains(string(bodyBytes), "seed.ceylan@ddo-case.invalid") {
+		t.Errorf("expected demo accounts to include seed.ceylan@ddo-case.invalid")
+	}
+
+	// 2. Unauthenticated request to /api/v1/reports/hq -> 401
+	unauthReq := httptest.NewRequest(http.MethodGet, "/api/v1/reports/hq", nil)
+	unauthResp, _ := app.Test(unauthReq, -1)
+	if unauthResp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 on unauthenticated /api/v1/reports/hq, got %d", unauthResp.StatusCode)
+	}
+
+	// 3. Waiter trying to access HQ report -> 403
+	waiterTokens, _ := auth.GenerateTokenPair(cfg.JWTSecret, 2, 1, "garson@sofrapos.local", "Ahmet", auth.RoleWaiter)
+	forbReq := httptest.NewRequest(http.MethodGet, "/api/v1/reports/hq", nil)
+	forbReq.Header.Set("Authorization", "Bearer "+waiterTokens.AccessToken)
+	forbResp, _ := app.Test(forbReq, -1)
+	if forbResp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for waiter on /api/v1/reports/hq, got %d", forbResp.StatusCode)
+	}
+
+	// 4. Customer trying to create payment -> 403
+	custTokens, _ := auth.GenerateTokenPair(cfg.JWTSecret, 7, 1, "musteri@sofrapos.local", "Elif", auth.RoleCustomer)
+	payReq := httptest.NewRequest(http.MethodPost, "/api/v1/orders/1/payments", nil)
+	payReq.Header.Set("Authorization", "Bearer "+custTokens.AccessToken)
+	payResp, _ := app.Test(payReq, -1)
+	if payResp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for customer on payment endpoint, got %d", payResp.StatusCode)
+	}
+}
+
 func TestMetricsAndOpenAPIEndpoints(t *testing.T) {
 	cfg := config.Load()
 	app := server.New(cfg, &mockProbe{fail: false})
 
-	// Trigger a health request first so metrics are populated
 	healthReq := httptest.NewRequest(http.MethodGet, "/health", nil)
 	_, _ = app.Test(healthReq, -1)
 
@@ -186,7 +251,6 @@ func TestMetricsAndOpenAPIEndpoints(t *testing.T) {
 		}
 	}
 
-	// OpenAPI JSON check
 	specReq := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
 	specResp, err := app.Test(specReq, -1)
 	if err != nil {
@@ -197,4 +261,3 @@ func TestMetricsAndOpenAPIEndpoints(t *testing.T) {
 		t.Fatalf("expected status 200 on /openapi.json, got %d", specResp.StatusCode)
 	}
 }
-
