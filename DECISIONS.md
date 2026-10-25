@@ -140,3 +140,44 @@ Bu doküman, projede alınan kritik mimari kararları, değerlendirilen alternat
 - **Karar:**
   - `ResolveRecipeTree` fonksiyonu ürün reçetesindeki yarı mamulleri (`is_semi_finished = true`) alt reçete bileşenlerine özyinelemeli olarak ayrıştırır, varyant çarpanı (`recipe_multiplier_pct`) ve modifier gramajlarını ekler.
   - `EvaluateBestCampaigns` fonksiyonu birleştirilebilir (`stackable = true`) kampanya/kupon kümesinin toplam indirimini, tekil (`stackable = false`) kampanya/kuponların her biriyle karşılaştırarak maksimum indirimi sağlayan stratejiyi seçer ve tüm karar gerekçelerini `campaign_explanation` (JSONB) olarak kaydeder.
+
+
+---
+
+## ADR-007: Adisyon Tutarlılığı İçin Olay Günlüğü (Event Sourcing) ve Optimistic Locking (`T-1`)
+
+- **Durum:** Kabul Edildi
+- **Tarih:** 2026-10-24
+- **Bağlam:**
+  Aynı masaya iki garsonun eşzamanlı kalem eklemesi, masa taşıma, masa birleştirme, üretilmiş kalemin iptali (fire) ve kısmi ödeme sırasında yeni kalem eklenmesi süreçlerinde veri kaybı veya tutarsız toplam oluşmamalıdır.
+- **Karar:**
+  `"dz-orders"` tablosunda `version` sütunu ile **Optimistic Locking** (`expected_version` kontrolü) ve satır kilidi (`SELECT ... FOR UPDATE`) birlikte uygulanmış; her durum değişikliği `"dz-order-events"` tablosuna eklemeli-yalnız (append-only) olay olarak kaydedilmiştir. `RebuildOrderStateFromEvents` fonksiyonu adisyon durumunu olaylardan kuruşu kuruşuna yeniden inşa eder.
+- **Sonuçlar:**
+  - **Olumlu:** Eşzamanlı güncellemelerde kayıp güncelleme (lost update) imkansızdır (`409 Conflict` döner); adisyonun mevcut toplamı her an olay günlüğünden doğrulanabilir (`GET /api/v1/orders/:id/rebuild`).
+  - **Olumsuz / Risk:** Her adisyon mutasyonu ek bir olay satırı (`INSERT INTO "dz-order-events"`) yazar.
+
+---
+
+## ADR-008: Tam Sayı (Kuruş) Aritmetiği ve En Büyük Kalan (Largest Remainder) İndirim Dağıtımı (`T-2`)
+
+- **Durum:** Kabul Edildi
+- **Tarih:** 2026-10-24
+- **Bağlam:**
+  Kayan noktalı (`float`) aritmetik kullanıldığında 100.00 TL'nin 3'e bölünmesi veya 50.00 TL indirimin 3 kaleme dağıtılması sırasında 1 kuruşluk yuvarlama farkları oluşmakta ve gün sonu Z raporunun ödeme toplamlarıyla uyuşmamasına yol açmaktadır.
+- **Karar:**
+  Tüm parasal değerler veritabanında `BIGINT` ve Go katmanında `int64` kuruş olarak temsil edilmiştir. İndirimlerin kalemlere dağıtılmasında **En Büyük Kalan (Largest Remainder)** yöntemi, eşit bölüşmede ise kalan kuruşların (`remaining % parts`) ilk paylara `+1` kuruş eklenmesi uygulanmıştır.
+- **Sonuçlar:**
+  - **Olumlu:** $\sum \text{kalem\_indirimi} == \text{toplam\_indirim}$ ve $\sum \text{bölüşme\_payı} == \text{kalan\_tutar}$ değişmezi (invariant) matematiksel olarak garanti altındadır; Z raporu kuruşu kuruşuna tutar.
+
+---
+
+## ADR-009: Ağaç Yapılı Alt Reçete (Yarı Mamul) Çözümleme ve Deterministik Kampanya Optimizasyonu (`T-4` & `T-5`)
+
+- **Durum:** Kabul Edildi
+- **Tarih:** 2026-10-24
+- **Bağlam:**
+  Restoran mutfağında ürünler doğrudan hammaddelerin yanı sıra yarı mamuller (*Özel İskender Sosu*, *Lahmacun İç Harcı*) kullanır. Ayrıca sepette birden fazla kampanya ve kupon aynı anda tetiklendiğinde müşteriye en yüksek faydayı sağlayan kombinasyonun deterministik olarak seçilmesi gerekir.
+- **Karar:**
+  - `ResolveRecipeTree` fonksiyonu ürün reçetesindeki yarı mamulleri (`is_semi_finished = true`) alt reçete bileşenlerine özyinelemeli olarak ayrıştırır, varyant çarpanı (`recipe_multiplier_pct`) ve modifier gramajlarını ekler.
+  - `EvaluateBestCampaigns` fonksiyonu birleştirilebilir (`stackable = true`) kampanya/kupon kümesinin toplam indirimini, tekil (`stackable = false`) kampanya/kuponların her biriyle karşılaştırarak maksimum indirimi sağlayan stratejiyi seçer ve tüm karar gerekçelerini `campaign_explanation` (JSONB) olarak kaydeder.
+

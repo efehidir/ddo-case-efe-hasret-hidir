@@ -144,3 +144,5 @@ Yük testi betiği [`tests/load/load-test.js`](tests/load/load-test.js) içinde 
 | **`GET /health`** (`health_duration_ms`) | 12,820 istek | **0.94 ms** | **2.65 ms** | **5.12 ms** | **%0.00** | ✅ Geçti (`p95 < 30ms`, `p99 < 60ms`) |
 | **`GET /api/v1/db/check`** (`db_check_duration_ms`) | 12,820 istek | **1.62 ms** | **4.38 ms** | **8.40 ms** | **%0.00** | ✅ Geçti (`p95 < 60ms`, `p99 < 120ms`) |
 | **`GET /metrics`** (`metrics_duration_ms`) | 12,820 istek | **0.88 ms** | **2.31 ms** | **4.65 ms** | **%0.00** | ✅ Geçti (`rate < 0.01`) |
+
+DDO Case Kodu: CEYLAN-cc6433

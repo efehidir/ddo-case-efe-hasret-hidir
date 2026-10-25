@@ -30,7 +30,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     image: ddo-backend:latest
-    container_name: ddo-backend
+    container_name: ddo-marul-api
     restart: unless-stopped
     environment:
       APP_ENV: ${APP_ENV:-production}
