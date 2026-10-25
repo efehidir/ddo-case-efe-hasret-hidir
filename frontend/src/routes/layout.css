@@ -42,7 +42,7 @@
 	}
 
 	body {
-		@apply m-0 min-w-[320px] bg-bg text-[0.9375rem] leading-6 text-text;
+		@apply m-0 min-w-[320px] bg-bg text-base leading-6 text-text;
 	}
 
 	button,

@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
+	import './operations.css';
 	import type {
 		BranchInfo,
 		DatabaseDiagnosticResponse,
@@ -8,7 +11,7 @@
 		OrderDetail,
 		TableItem,
 		UserProfile
-	} from '#lib/types';
+	} from '#lib/types.js';
 
 	let { data } = $props();
 
@@ -17,6 +20,20 @@
 	let globalError = $state<string | null>(null);
 	let actionNotice = $state<string | null>(null);
 	let isLoading = $state(false);
+	let isMutating = $state(false);
+	let refreshToken = '';
+	let refreshPromise: Promise<void> | null = null;
+	const mutationKeys = new SvelteMap<string, string>();
+	let sessionEpoch = 0;
+	let counts = $state<Record<string, number | undefined>>({});
+	let openingCash = $state(500000);
+	let closingCash = $state<number | undefined>();
+	let resetArmed = $state(false);
+	let kdsConnection = $state('Bağlantı kuruluyor');
+	let equalPreviewVersion = $state(0);
+	let equalPaymentShares = $state<number[]>([]);
+	let equalPaymentOrder = 0;
+	let equalPaymentParts = 0;
 
 	// Auth state
 	let accessToken = $state<string>('');
@@ -27,7 +44,13 @@
 	// Branch & Active Tab
 	let selectedBranchId = $state<number>(1);
 	let branches = $state<BranchInfo[]>([]);
-	let activeTab = $state<'tables' | 'kds' | 'cashier' | 'inventory' | 'hq' | 'menu' | 'infra'>('tables');
+	let activeTab = $state<'tables' | 'kds' | 'cashier' | 'inventory' | 'hq' | 'menu' | 'infra'>(
+		'menu'
+	);
+	let canManage = $derived(['branch_manager', 'hq_manager'].includes(currentUser?.role ?? ''));
+	let canCook = $derived(
+		['chef', 'branch_manager', 'hq_manager'].includes(currentUser?.role ?? '')
+	);
 
 	// Domain state
 	let menuItems = $state<MenuItem[]>([]);
@@ -40,6 +63,7 @@
 	let addVariantId = $state<number>(0);
 	let addModifierIds = $state<number[]>([]);
 	let addQuantity = $state<number>(1);
+	let selectedMenuItem = $derived(menuItems.find((item) => item.id === Number(addMenuItemId)));
 	let moveTargetTableId = $state<number>(5);
 	let mergeSourceOrderId = $state<number>(0);
 
@@ -70,13 +94,132 @@
 	let auditLogs = $state<Array<Record<string, unknown>>>([]);
 
 	const demoRoles = [
-		{ role: 'waiter', label: 'Garson', email: 'garson@sofrapos.local', defaultTab: 'tables' as const },
-		{ role: 'cashier', label: 'Kasiyer (Kasa)', email: 'kasiyer@sofrapos.local', defaultTab: 'cashier' as const },
-		{ role: 'chef', label: 'Aşçı (Mutfak KDS)', email: 'asci@sofrapos.local', defaultTab: 'kds' as const },
-		{ role: 'branch_manager', label: 'Şube Müdürü', email: 'mudur@sofrapos.local', defaultTab: 'inventory' as const },
-		{ role: 'hq_manager', label: 'Merkez Yönetim', email: 'merkez@sofrapos.local', defaultTab: 'hq' as const },
-		{ role: 'customer', label: 'Müşteri (QR Menü)', email: 'musteri@sofrapos.local', defaultTab: 'menu' as const }
+		{
+			role: 'waiter',
+			label: 'Garson',
+			email: 'garson@sofrapos.local',
+			defaultTab: 'tables' as const
+		},
+		{
+			role: 'cashier',
+			label: 'Kasiyer (Kasa)',
+			email: 'kasiyer@sofrapos.local',
+			defaultTab: 'cashier' as const
+		},
+		{
+			role: 'chef',
+			label: 'Aşçı (Mutfak KDS)',
+			email: 'asci@sofrapos.local',
+			defaultTab: 'kds' as const
+		},
+		{
+			role: 'branch_manager',
+			label: 'Şube Müdürü',
+			email: 'mudur@sofrapos.local',
+			defaultTab: 'inventory' as const
+		},
+		{
+			role: 'hq_manager',
+			label: 'Merkez Yönetim',
+			email: 'merkez@sofrapos.local',
+			defaultTab: 'hq' as const
+		},
+		{
+			role: 'customer',
+			label: 'Müşteri (QR Menü)',
+			email: 'musteri@sofrapos.local',
+			defaultTab: 'menu' as const
+		}
 	];
+	onMount(() => {
+		void refreshRoleData();
+	});
+
+	function clearRoleData() {
+		sessionEpoch++;
+		selectedOrder = null;
+		rebuildProof = null;
+		tables = [];
+		kdsItems = [];
+		ingredients = [];
+		stockMovements = [];
+		zReport = null;
+		varianceReport = null;
+		hqReport = null;
+		auditLogs = [];
+		dbDiag = null;
+		counts = {};
+		equalSharesPreview = [];
+		selectedItemIdsForSplit = [];
+		kdsLastEventId = 0;
+		kdsReplayedEvents = [];
+		resetArmed = false;
+		equalPaymentShares = [];
+		equalPaymentOrder = 0;
+		mutationKeys.clear();
+	}
+
+	function logout() {
+		accessToken = '';
+		refreshToken = '';
+		currentUser = null;
+		clearRoleData();
+		activeTab = 'menu';
+		actionNotice = 'Oturum kapatıldı.';
+	}
+
+	function changeBranch() {
+		clearRoleData();
+		void refreshRoleData();
+	}
+
+	$effect(() => {
+		const token = accessToken;
+		const branch = selectedBranchId;
+		const role = currentUser?.role;
+		if (!token || !role || !['chef', 'waiter', 'branch_manager', 'hq_manager'].includes(role))
+			return;
+		const epoch = sessionEpoch;
+		const url = `${data.publicApiUrl}/api/v1/kds/stream?branch_id=${branch}&token=${encodeURIComponent(token)}`;
+		const source = new EventSource(url);
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		source.onopen = () => {
+			kdsConnection = 'Canlı bağlantı açık';
+		};
+		source.onerror = () => {
+			kdsConnection = 'Yeniden bağlanıyor; kaçırılan olaylar alınıyor';
+		};
+		source.addEventListener('kds_event', (event: MessageEvent) => {
+			if (epoch !== sessionEpoch) return;
+			kdsLastEventId = Number(event.lastEventId);
+			if (!timer)
+				timer = setTimeout(() => {
+					timer = undefined;
+					void refreshKitchen();
+				}, 300);
+		});
+		// Refresh preparation timers even when no new events arrive.
+		const interval = setInterval(() => {
+			if (epoch === sessionEpoch) void refreshKitchen();
+		}, 15000);
+		return () => {
+			source.close();
+			clearTimeout(timer);
+			clearInterval(interval);
+		};
+	});
+
+	async function refreshKitchen() {
+		const epoch = sessionEpoch;
+		try {
+			const res = await apiFetch(
+				`/api/v1/kds/items?branch_id=${selectedBranchId}&station=${kdsStation}`
+			);
+			if (epoch === sessionEpoch) kdsItems = res.items ?? [];
+		} catch {
+			kdsConnection = 'Mutfak verisi yenilenemedi; bağlantı tekrar denenecek';
+		}
+	}
 
 	$effect(() => {
 		health = data.health;
@@ -88,49 +231,99 @@
 
 	function formatTL(kurus: number | undefined | null): string {
 		const val = Number(kurus ?? 0);
-		return (val / 100).toFixed(2) + ' ₺';
+		return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(val / 100);
 	}
 
 	function allowedTabsForRole(role: string | undefined): string[] {
 		switch (role) {
 			case 'waiter':
-				return ['tables', 'kds', 'menu', 'infra'];
+				return ['tables', 'kds', 'menu'];
 			case 'cashier':
-				return ['cashier', 'tables', 'menu', 'infra'];
+				return ['cashier', 'tables', 'menu'];
 			case 'chef':
-				return ['kds', 'inventory', 'menu', 'infra'];
+				return ['kds', 'inventory', 'menu'];
 			case 'branch_manager':
-				return ['tables', 'cashier', 'kds', 'inventory', 'hq', 'menu', 'infra'];
+				return ['tables', 'cashier', 'kds', 'inventory', 'menu'];
 			case 'hq_manager':
 				return ['hq', 'inventory', 'cashier', 'tables', 'kds', 'menu', 'infra'];
 			case 'customer':
-				return ['menu', 'infra'];
+				return ['menu'];
 			default:
-				return ['menu', 'infra'];
+				return ['menu'];
 		}
 	}
 
 	async function apiFetch(path: string, options: RequestInit = {}) {
+		const mutating =
+			!!options.method &&
+			['POST', 'PATCH', 'PUT', 'DELETE'].includes(options.method) &&
+			!path.includes('/auth/') &&
+			!path.endsWith('/split-preview');
+		const fingerprint = `${path}:${String(options.body ?? '')}`;
 		const headers = new Headers(options.headers || {});
+		if (mutating) {
+			if (isMutating) throw new Error('Devam eden işlemin tamamlanmasını bekleyin.');
+			if (!mutationKeys.has(fingerprint)) mutationKeys.set(fingerprint, crypto.randomUUID());
+			headers.set('Idempotency-Key', mutationKeys.get(fingerprint)!);
+			isMutating = true;
+		}
 		if (accessToken) {
 			headers.set('Authorization', `Bearer ${accessToken}`);
 		}
 		if (options.body && !headers.has('Content-Type')) {
 			headers.set('Content-Type', 'application/json');
 		}
-		const res = await fetch(`${data.publicApiUrl}${path}`, {
-			...options,
-			headers
-		});
-		const json = await res.json().catch(() => ({}));
-		if (!res.ok) {
-			const msg = json?.error?.message || `HTTP ${res.status} hatası`;
-			throw new Error(msg);
+		try {
+			let res = await fetch(`${data.publicApiUrl}${path}`, {
+				...options,
+				headers,
+				signal: AbortSignal.timeout(20000)
+			});
+			if (res.status === 401 && refreshToken && !path.includes('/auth/')) {
+				refreshPromise ??= fetch(`${data.publicApiUrl}/api/v1/auth/refresh`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ refresh_token: refreshToken }),
+					signal: AbortSignal.timeout(10000)
+				})
+					.then(async (response) => {
+						if (!response.ok) {
+							logout();
+							throw new Error('Oturum süresi doldu. Tekrar giriş yapın.');
+						}
+						const pair = await response.json();
+						accessToken = pair.access_token;
+						refreshToken = pair.refresh_token;
+					})
+					.finally(() => {
+						refreshPromise = null;
+					});
+				await refreshPromise;
+				headers.set('Authorization', `Bearer ${accessToken}`);
+				res = await fetch(`${data.publicApiUrl}${path}`, {
+					...options,
+					headers,
+					signal: AbortSignal.timeout(20000)
+				});
+			}
+			const json = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				if (res.status < 500) mutationKeys.delete(fingerprint);
+				const msg = json?.error?.message || `HTTP ${res.status} hatası`;
+				throw new Error(msg);
+			}
+			mutationKeys.delete(fingerprint);
+			return json;
+		} finally {
+			if (mutating) isMutating = false;
 		}
-		return json;
 	}
 
-	async function loginWithCredentials(email: string, password: string, preferredTab?: typeof activeTab) {
+	async function loginWithCredentials(
+		email: string,
+		password: string,
+		preferredTab?: typeof activeTab
+	) {
 		isLoading = true;
 		globalError = null;
 		actionNotice = null;
@@ -140,7 +333,10 @@
 				body: JSON.stringify({ email, password })
 			});
 			accessToken = res.access_token;
+			refreshToken = res.refresh_token;
+			clearRoleData();
 			currentUser = res.user;
+			selectedBranchId = res.user.branch_id;
 			loginEmail = email;
 			if (preferredTab) {
 				activeTab = preferredTab;
@@ -158,6 +354,7 @@
 	}
 
 	async function refreshRoleData() {
+		const epoch = sessionEpoch;
 		isLoading = true;
 		globalError = null;
 		try {
@@ -167,6 +364,7 @@
 			]);
 			branches = brRes.branches || [];
 			menuItems = mnRes.items || [];
+			if (epoch !== sessionEpoch) return;
 
 			if (!currentUser) return;
 			const role = currentUser.role;
@@ -175,15 +373,21 @@
 				const tbRes = await apiFetch(`/api/v1/tables?branch_id=${selectedBranchId}`);
 				tables = tbRes.tables || [];
 				const occupied = tables.find((t) => t.status === 'OCCUPIED' && t.active_order_id > 0);
-				if (occupied && (!selectedOrder || selectedOrder.branch_id !== selectedBranchId)) {
+				if (selectedOrder?.branch_id === selectedBranchId) await loadOrder(selectedOrder.id);
+				if (
+					role !== 'chef' &&
+					occupied &&
+					(!selectedOrder || selectedOrder.branch_id !== selectedBranchId)
+				) {
 					await loadOrder(occupied.active_order_id);
 				}
 			}
 
 			if (['chef', 'waiter', 'branch_manager', 'hq_manager'].includes(role)) {
-				const kdsRes = await apiFetch(`/api/v1/kds/items?branch_id=${selectedBranchId}&station=${kdsStation}`);
+				const kdsRes = await apiFetch(
+					`/api/v1/kds/items?branch_id=${selectedBranchId}&station=${kdsStation}`
+				);
 				kdsItems = kdsRes.items || [];
-				kdsLastEventId = kdsRes.last_event_id || 0;
 			}
 
 			if (['cashier', 'branch_manager', 'hq_manager'].includes(role)) {
@@ -195,11 +399,13 @@
 				ingredients = invRes.ingredients || [];
 				stockMovements = invRes.movements || [];
 				if (role !== 'chef') {
-					varianceReport = await apiFetch(`/api/v1/inventory/variance-report?branch_id=${selectedBranchId}`);
+					varianceReport = await apiFetch(
+						`/api/v1/inventory/variance-report?branch_id=${selectedBranchId}`
+					);
 				}
 			}
 
-			if (['branch_manager', 'hq_manager'].includes(role)) {
+			if (role === 'hq_manager') {
 				const [hqRes, audRes] = await Promise.all([
 					apiFetch('/api/v1/reports/hq'),
 					apiFetch('/api/v1/audit-logs?limit=15')
@@ -207,6 +413,7 @@
 				hqReport = hqRes;
 				auditLogs = audRes.audit_logs || [];
 			}
+			if (role === 'hq_manager') dbDiag = await apiFetch('/api/v1/db/check');
 		} catch (err) {
 			globalError = err instanceof Error ? err.message : 'Veri yüklenirken hata oluştu.';
 		} finally {
@@ -217,7 +424,16 @@
 	async function loadOrder(orderId: number) {
 		if (!orderId) return;
 		try {
-			selectedOrder = await apiFetch(`/api/v1/orders/${orderId}`);
+			const epoch = sessionEpoch;
+			const order = await apiFetch(`/api/v1/orders/${orderId}`);
+			if (epoch !== sessionEpoch) return;
+			selectedOrder = order;
+			selectedItemIdsForSplit = selectedItemIdsForSplit.filter((id) =>
+				order.items.some(
+					(it: { id: number; remaining_kurus: number; is_cancelled: boolean }) =>
+						it.id === id && it.remaining_kurus > 0 && !it.is_cancelled
+				)
+			);
 			rebuildProof = null;
 		} catch (err) {
 			globalError = err instanceof Error ? err.message : 'Adisyon yüklenemedi.';
@@ -254,12 +470,13 @@
 					menu_item_id: Number(addMenuItemId),
 					quantity: Number(addQuantity),
 					variant_id: Number(addVariantId),
-					modifier_ids: addModifierIds
+					modifier_ids: addModifierIds,
+					expected_version: selectedOrder.version
 				})
 			});
 			selectedOrder = updated;
 			await refreshRoleData();
-			actionNotice = `Adisyon #${selectedOrder.id} içerisine kalem eklendi (Versiyon v${updated.version}).`;
+			actionNotice = `Adisyon #${updated.id} içerisine kalem eklendi.`;
 		} catch (err) {
 			globalError = err instanceof Error ? err.message : 'Kalem eklenemedi.';
 		}
@@ -320,7 +537,7 @@
 			});
 			selectedOrder = updated;
 			await refreshRoleData();
-			actionNotice = `Kaynak adisyon #${mergeSourceOrderId}, hedef adisyon #${selectedOrder.id} ile birleştirildi.`;
+			actionNotice = `Kaynak adisyon #${mergeSourceOrderId}, adisyon #${updated.id} ile birleştirildi.`;
 		} catch (err) {
 			globalError = err instanceof Error ? err.message : 'Masa birleştirme başarısız.';
 		}
@@ -342,7 +559,9 @@
 	async function simulateKDSReconnectReplay() {
 		try {
 			const since = Math.max(0, kdsLastEventId - 5);
-			const res = await apiFetch(`/api/v1/kds/events?branch_id=${selectedBranchId}&since_event_id=${since}`);
+			const res = await apiFetch(
+				`/api/v1/kds/events?branch_id=${selectedBranchId}&since_event_id=${since}`
+			);
 			kdsReplayedEvents = res.events || [];
 			actionNotice = `SSE kopma telafisi: since_event_id=${since} sonrasında kaçırılan ${res.replayed_count} olay geri alındı.`;
 		} catch (err) {
@@ -373,6 +592,10 @@
 				body: JSON.stringify({ split_mode: 'EQUAL', parts: Number(equalSplitParts) })
 			});
 			equalSharesPreview = res.shares_kurus || [];
+			equalPreviewVersion = selectedOrder.version;
+			equalPaymentShares = [...equalSharesPreview];
+			equalPaymentOrder = selectedOrder.id;
+			equalPaymentParts = Number(equalSplitParts);
 		} catch (err) {
 			globalError = err instanceof Error ? err.message : 'Bölüşme hesaplanamadı.';
 		}
@@ -381,6 +604,14 @@
 	async function submitPayment() {
 		if (!selectedOrder) return;
 		try {
+			if (
+				splitMode === 'EQUAL' &&
+				(equalPaymentOrder !== selectedOrder.id ||
+					equalPaymentParts !== Number(equalSplitParts) ||
+					equalPaymentShares.length === 0 ||
+					equalPreviewVersion !== selectedOrder.version)
+			)
+				throw new Error('Ödemeden önce güncel kişi paylarını hesaplayın.');
 			const payload: Record<string, unknown> = {
 				method: paymentMethod,
 				split_mode: splitMode,
@@ -391,8 +622,8 @@
 				payload.split_mode = 'MIXED';
 				payload.cash_amount_kurus = Number(mixedCashKurus);
 				payload.card_amount_kurus = Number(mixedCardKurus);
-			} else if (splitMode === 'EQUAL' && equalSharesPreview.length > 0) {
-				payload.amount_kurus = equalSharesPreview[0];
+			} else if (splitMode === 'EQUAL') {
+				payload.amount_kurus = equalPaymentShares[0];
 			} else if (splitMode === 'BY_ITEM') {
 				payload.selected_item_ids = selectedItemIdsForSplit;
 			} else if (splitMode === 'CUSTOM') {
@@ -407,6 +638,11 @@
 				body: JSON.stringify(payload)
 			});
 			selectedOrder = updated;
+			if (splitMode === 'EQUAL') {
+				equalPaymentShares = equalPaymentShares.slice(1);
+				equalSharesPreview = [...equalPaymentShares];
+				equalPreviewVersion = updated.version;
+			}
 			await refreshRoleData();
 			actionNotice = `Ödeme başarıyla işlendi. Kalan tutar: ${formatTL(updated.remaining_kurus)}`;
 		} catch (err) {
@@ -420,16 +656,36 @@
 				method: 'POST',
 				body: JSON.stringify({
 					branch_id: selectedBranchId,
-					counts: [
-						{ ingredient_code: 'ING-BEEF', counted_grams: 48200 },
-						{ ingredient_code: 'ING-TOMATO', counted_grams: 48900 }
-					]
+					counts: Object.entries(counts)
+						.filter(([, value]) => value !== undefined && value !== null)
+						.map(([ingredient_code, counted_grams]) => ({ ingredient_code, counted_grams }))
 				})
 			});
 			varianceReport = res;
-			actionNotice = 'Gün sonu fiziksel stok sayımı kaydedildi ve teorik/sayım fark raporu güncellendi.';
+			await refreshRoleData();
+			counts = {};
+			actionNotice =
+				'Gün sonu fiziksel stok sayımı kaydedildi ve teorik/sayım fark raporu güncellendi.';
 		} catch (err) {
 			globalError = err instanceof Error ? err.message : 'Stok sayımı gönderilemedi.';
+		}
+	}
+
+	async function changeShift(action: 'open' | 'close') {
+		try {
+			await apiFetch(`/api/v1/shifts/${action}`, {
+				method: 'POST',
+				body: JSON.stringify({
+					branch_id: selectedBranchId,
+					opening_cash_kurus: Number(openingCash),
+					...(closingCash === undefined ? {} : { closing_cash_kurus: Number(closingCash) })
+				})
+			});
+			await refreshRoleData();
+			actionNotice =
+				action === 'open' ? 'Vardiya açıldı.' : 'Vardiya kapatıldı. Z raporu kaydedildi.';
+		} catch (err) {
+			globalError = err instanceof Error ? err.message : 'Vardiya işlemi tamamlanamadı.';
 		}
 	}
 
@@ -448,990 +704,941 @@
 	}
 </script>
 
-<main class="container">
-	<!-- Top Header & Role Switcher -->
-	<header class="topbar">
-		<div>
-			<span class="badge">SofraPOS • 8 Şubeli Restoran Sipariş, Mutfak (KDS), Stok ve Kasa Sistemi</span>
-			<h1>SofraPOS Yönetim ve Operasyon Ekranı</h1>
-		</div>
-		<div class="branch-picker">
-			<label for="branch-select">Aktif Şube:</label>
-			<select
-				id="branch-select"
-				bind:value={selectedBranchId}
-				onchange={() => refreshRoleData()}
-			>
-				{#if branches.length === 0}
-					<option value={1}>BR-01 • Kadıköy Merkez Şube</option>
-				{:else}
-					{#each branches as b}
-						<option value={b.id}>{b.code} • {b.name} ({b.city})</option>
-					{/each}
-				{/if}
-			</select>
-			<button class="btn-outline" onclick={() => refreshRoleData()} disabled={isLoading}>
-				{isLoading ? 'Yükleniyor...' : 'Yenile'}
-			</button>
-		</div>
-	</header>
-
-	<!-- Quick Role Login Bar -->
-	<section class="card auth-bar">
-		<div class="auth-header">
+<svelte:head><title>SofraPOS · Restoran operasyonları</title></svelte:head>
+<main class="container" aria-busy={isLoading || isMutating}>
+	<fieldset class="contents" disabled={isLoading || isMutating} aria-label="Restoran işlemleri">
+		<!-- Top Header & Role Switcher -->
+		<header class="topbar">
 			<div>
-				<strong>Rol Bazlı Hızlı Demo Girişi (RBAC):</strong>
-				{#if currentUser}
-					<span class="active-user">
-						Aktif Oturum: <strong>{currentUser.full_name}</strong> (<code>{currentUser.role}</code> — {currentUser.email})
-					</span>
-				{:else}
-					<span class="muted">İşlem yapmak için bir rol seçin veya giriş yapın (Parola: <code>Sofra2026!</code>)</span>
-				{/if}
-			</div>
-		</div>
-		<div class="role-buttons">
-			{#each demoRoles as d}
-				<button
-					class="btn-role {currentUser?.role === d.role ? 'active' : ''}"
-					onclick={() => loginWithCredentials(d.email, 'Sofra2026!', d.defaultTab)}
+				<span class="badge"
+					>SofraPOS • 8 Şubeli Restoran Sipariş, Mutfak (KDS), Stok ve Kasa Sistemi</span
 				>
-					{d.label}
-				</button>
-			{/each}
-		</div>
-	</section>
-
-	{#if globalError}
-		<div class="alert-error" role="alert">
-			<strong>Hata:</strong> {globalError}
-		</div>
-	{/if}
-
-	{#if actionNotice}
-		<div class="alert-ok" role="status">
-			{actionNotice}
-		</div>
-	{/if}
-
-	<!-- Navigation Tabs (Filtered by RBAC Role) -->
-	<nav class="tabs">
-		{#if allowedTabsForRole(currentUser?.role).includes('tables')}
-			<button class:selected={activeTab === 'tables'} onclick={() => (activeTab = 'tables')}>
-				Masa & Adisyon (Garson)
-			</button>
-		{/if}
-		{#if allowedTabsForRole(currentUser?.role).includes('kds')}
-			<button class:selected={activeTab === 'kds'} onclick={() => (activeTab = 'kds')}>
-				Mutfak Ekranı (KDS)
-			</button>
-		{/if}
-		{#if allowedTabsForRole(currentUser?.role).includes('cashier')}
-			<button class:selected={activeTab === 'cashier'} onclick={() => (activeTab = 'cashier')}>
-				Kasa, Bölüşme & Kampanya
-			</button>
-		{/if}
-		{#if allowedTabsForRole(currentUser?.role).includes('inventory')}
-			<button class:selected={activeTab === 'inventory'} onclick={() => (activeTab = 'inventory')}>
-				Reçete Stok & Fire (Müdür)
-			</button>
-		{/if}
-		{#if allowedTabsForRole(currentUser?.role).includes('hq')}
-			<button class:selected={activeTab === 'hq'} onclick={() => (activeTab = 'hq')}>
-				8 Şube Merkez & Denetim
-			</button>
-		{/if}
-		<button class:selected={activeTab === 'menu'} onclick={() => (activeTab = 'menu')}>
-			QR Menü & Varyantlar
-		</button>
-		<button class:selected={activeTab === 'infra'} onclick={() => (activeTab = 'infra')}>
-			Sistem Sağlığı & DB
-		</button>
-	</nav>
-
-	<!-- TAB 1: TABLES & ORDERS (F-2, T-1) -->
-	{#if activeTab === 'tables'}
-		<section class="split-layout">
-			<div class="card">
-				<h2>Şube #{selectedBranchId} Masa Planı</h2>
-				{#if isLoading && tables.length === 0}
-					<p class="muted">Masalar yükleniyor...</p>
-				{:else if tables.length === 0}
-					<p class="muted">Masa görüntülemek için lütfen yukarıdan Garson veya Müdür rolüyle giriş yapın.</p>
-				{:else}
-					<div class="table-grid">
-						{#each tables as t}
-							<button
-								class="table-tile {t.status === 'OCCUPIED' ? 'occupied' : 'empty'} {selectedOrder?.table_id === t.id ? 'focused' : ''}"
-								onclick={() => openOrSelectTable(t)}
-							>
-								<div class="tile-top">
-									<strong>{t.code}</strong>
-									<span class="status-tag">{t.status === 'OCCUPIED' ? 'DOLU' : 'BOŞ'}</span>
-								</div>
-								<div class="tile-meta">{t.capacity} Kişilik</div>
-								{#if t.status === 'OCCUPIED'}
-									<div class="tile-price">{formatTL(t.order_total_kurus)}</div>
-									<small>Adisyon #{t.active_order_id} (v{t.order_version})</small>
-								{:else}
-									<small>Adisyon Aç</small>
-								{/if}
-							</button>
-						{/each}
-					</div>
-				{/if}
+				<h1>SofraPOS Yönetim ve Operasyon Ekranı</h1>
 			</div>
+			<div class="branch-picker">
+				<label for="branch-select">Aktif Şube:</label>
+				<select
+					id="branch-select"
+					bind:value={selectedBranchId}
+					onchange={changeBranch}
+					disabled={currentUser?.role !== 'hq_manager'}
+				>
+					{#if branches.length === 0}
+						<option value={1}>BR-01 • Kadıköy Merkez Şube</option>
+					{:else}
+						{#each branches as b (b.id)}
+							{#if !currentUser || currentUser.role === 'hq_manager' || b.id === currentUser.branch_id}<option
+									value={b.id}>{b.code} • {b.name} ({b.city})</option
+								>{/if}
+						{/each}
+					{/if}
+				</select>
+				<button class="btn-outline" onclick={() => refreshRoleData()} disabled={isLoading}>
+					{isLoading ? 'Yükleniyor...' : 'Yenile'}
+				</button>
+			</div>
+		</header>
 
-			<div class="card">
-				{#if selectedOrder}
-					<div class="card-header">
-						<div>
-							<h2>Adisyon #{selectedOrder.id} ({selectedOrder.table_code})</h2>
-							<small class="muted">Optimistic Lock Versiyon: <code>v{selectedOrder.version}</code> • Durum: <code>{selectedOrder.status}</code></small>
-						</div>
-						<button class="btn-outline" onclick={verifyEventSourcingRebuild}>
-							Olay Günlüğünden Doğrula (T-1)
-						</button>
-					</div>
+		<!-- Quick Role Login Bar -->
+		<section class="card auth-bar">
+			<div class="auth-header">
+				<div>
+					<strong>Rol Bazlı Hızlı Demo Girişi (RBAC):</strong>
+					{#if currentUser}
+						<span class="active-user">
+							Aktif Oturum: <strong>{currentUser.full_name}</strong> (<code>{currentUser.role}</code
+							>
+							— {currentUser.email})
+						</span>
+					{:else}
+						<span class="muted"
+							>İşlem yapmak için bir rol seçin veya giriş yapın (Parola: <code>Sofra2026!</code
+							>)</span
+						>
+					{/if}
+				</div>
+			</div>
+			<div class="role-buttons">
+				{#each demoRoles as d (d.role)}
+					<button
+						class="btn-role {currentUser?.role === d.role ? 'active' : ''}"
+						onclick={() => loginWithCredentials(d.email, 'Sofra2026!', d.defaultTab)}
+					>
+						{d.label}
+					</button>
+				{/each}
+				{#if currentUser}<button class="btn-outline" onclick={logout}>Oturumu kapat</button>{/if}
+			</div>
+			<form
+				class="flex flex-wrap items-end gap-3 border-t border-border pt-3"
+				onsubmit={(event) => {
+					event.preventDefault();
+					void loginWithCredentials(loginEmail, loginPassword);
+				}}
+			>
+				<label class="flex min-w-0 flex-1 flex-col gap-1"
+					>E-posta<input
+						type="email"
+						autocomplete="username"
+						required
+						bind:value={loginEmail}
+					/></label
+				>
+				<label class="flex min-w-0 flex-1 flex-col gap-1"
+					>Parola<input
+						type="password"
+						autocomplete="current-password"
+						required
+						bind:value={loginPassword}
+					/></label
+				>
+				<button type="submit" class="btn-outline">Giriş yap</button>
+			</form>
+		</section>
+		{#if isLoading || isMutating}<p role="status" class="text-info">
+				{isMutating ? 'İşlem kaydediliyor…' : 'Veriler yükleniyor…'}
+			</p>{/if}
 
-					{#if rebuildProof}
-						<div class="proof-box">
-							<strong>Olay Günlüğü (Event Sourcing) Tutarlılık Kanıtı:</strong>
-							<span>Durum: <code>{rebuildProof.is_consistent ? 'TUTARLI (PASS)' : 'UYUŞMAZLIK'}</code></span>
+		{#if globalError}
+			<div class="alert-error" role="alert">
+				<strong>Hata:</strong>
+				{globalError}
+				<button class="btn-outline ml-3" onclick={() => refreshRoleData()}>Tekrar yükle</button>
+			</div>
+		{/if}
+
+		{#if actionNotice}
+			<div class="alert-ok" role="status">
+				{actionNotice}
+			</div>
+		{/if}
+
+		<!-- Navigation Tabs (Filtered by RBAC Role) -->
+		<nav class="tabs">
+			{#if allowedTabsForRole(currentUser?.role).includes('tables')}
+				<button class:selected={activeTab === 'tables'} onclick={() => (activeTab = 'tables')}>
+					Masa & Adisyon (Garson)
+				</button>
+			{/if}
+			{#if allowedTabsForRole(currentUser?.role).includes('kds')}
+				<button class:selected={activeTab === 'kds'} onclick={() => (activeTab = 'kds')}>
+					Mutfak Ekranı (KDS)
+				</button>
+			{/if}
+			{#if allowedTabsForRole(currentUser?.role).includes('cashier')}
+				<button class:selected={activeTab === 'cashier'} onclick={() => (activeTab = 'cashier')}>
+					Kasa, Bölüşme & Kampanya
+				</button>
+			{/if}
+			{#if allowedTabsForRole(currentUser?.role).includes('inventory')}
+				<button
+					class:selected={activeTab === 'inventory'}
+					onclick={() => (activeTab = 'inventory')}
+				>
+					Reçete Stok & Fire (Müdür)
+				</button>
+			{/if}
+			{#if allowedTabsForRole(currentUser?.role).includes('hq')}
+				<button class:selected={activeTab === 'hq'} onclick={() => (activeTab = 'hq')}>
+					8 Şube Merkez & Denetim
+				</button>
+			{/if}
+			<button class:selected={activeTab === 'menu'} onclick={() => (activeTab = 'menu')}>
+				QR Menü & Varyantlar
+			</button>
+			{#if allowedTabsForRole(currentUser?.role).includes('infra')}<button
+					class:selected={activeTab === 'infra'}
+					onclick={() => (activeTab = 'infra')}
+				>
+					Sistem Sağlığı & DB
+				</button>{/if}
+		</nav>
+
+		<!-- TAB 1: TABLES & ORDERS (F-2, T-1) -->
+		{#if activeTab === 'tables'}
+			<section class="split-layout">
+				<div class="card">
+					<h2>Şube #{selectedBranchId} Masa Planı</h2>
+					{#if isLoading && tables.length === 0}
+						<p class="muted">Masalar yükleniyor...</p>
+					{:else if tables.length === 0}
+						<p class="muted">
+							Masa görüntülemek için lütfen yukarıdan Garson veya Müdür rolüyle giriş yapın.
+						</p>
+					{:else}
+						<div class="table-grid">
+							{#each tables as t (t.id)}
+								<button
+									class="table-tile {t.status === 'OCCUPIED'
+										? 'occupied'
+										: 'empty'} {selectedOrder?.table_id === t.id ? 'focused' : ''}"
+									onclick={() => openOrSelectTable(t)}
+								>
+									<div class="tile-top">
+										<strong>{t.code}</strong>
+										<span class="status-tag">{t.status === 'OCCUPIED' ? 'DOLU' : 'BOŞ'}</span>
+									</div>
+									<div class="tile-meta">{t.capacity} Kişilik</div>
+									{#if t.status === 'OCCUPIED'}
+										<div class="tile-price">{formatTL(t.order_total_kurus)}</div>
+										<small>Adisyon #{t.active_order_id} (v{t.order_version})</small>
+									{:else}
+										<small>Adisyon Aç</small>
+									{/if}
+								</button>
+							{/each}
 						</div>
 					{/if}
-
-					<!-- Add Item Form -->
-					<div class="form-row">
-						<select bind:value={addMenuItemId}>
-							{#each menuItems as m}
-								<option value={m.id}>{m.name} ({formatTL(m.base_price_kurus)})</option>
-							{/each}
-						</select>
-						<input type="number" min="1" max="20" bind:value={addQuantity} style="width: 75px;" />
-						<button class="btn-primary" onclick={addItemToOrder}>Kalem Ekle</button>
-					</div>
-
-					<!-- Order Items List -->
-					<div class="item-list">
-						{#if selectedOrder.items.length === 0}
-							<p class="muted">Bu adisyonda henüz sipariş kalemi bulunmuyor.</p>
-						{:else}
-							{#each selectedOrder.items as item}
-								<div class="order-item-row {item.is_cancelled ? 'cancelled' : ''}">
-									<div>
-										<strong>{item.item_name}</strong> ({item.variant_name}) x{item.quantity}
-										{#if item.modifier_names}
-											<div class="mod-text">+ {item.modifier_names}</div>
-										{/if}
-										<small class="muted">
-											İstasyon: <code>{item.station}</code> • Kurs: {item.course} • KDS: <code>{item.kds_status}</code>
-											{#if item.allocated_discount_kurus > 0}
-												• İndirim Payı: -{formatTL(item.allocated_discount_kurus)}
-											{/if}
-										</small>
-									</div>
-									<div class="item-actions">
-										<span>{formatTL(item.net_total_kurus)}</span>
-										{#if !item.is_cancelled}
-											<button class="btn-danger-sm" onclick={() => cancelOrderItem(item.id, true)}>
-												İptal (Fire)
-											</button>
-										{:else}
-											<span class="badge-err">İPTAL</span>
-										{/if}
-									</div>
-								</div>
-							{/each}
-						{/if}
-					</div>
-
-					<!-- Totals & Table Move/Merge -->
-					<div class="totals-bar">
-						<div>Ara Toplam: <strong>{formatTL(selectedOrder.subtotal_kurus)}</strong></div>
-						<div>İndirim: <strong>-{formatTL(selectedOrder.discount_kurus)}</strong></div>
-						<div>Net Toplam: <strong>{formatTL(selectedOrder.total_kurus)}</strong></div>
-						<div>Kalan: <strong class="highlight">{formatTL(selectedOrder.remaining_kurus)}</strong></div>
-					</div>
-
-					<div class="sub-actions">
-						<div class="inline-group">
-							<label for="move-table-input">Masaya Taşı (ID):</label>
-							<input id="move-table-input" type="number" min="1" bind:value={moveTargetTableId} style="width:70px" />
-							<button class="btn-outline" onclick={moveSelectedOrderTable}>Masayı Taşı</button>
-						</div>
-						<div class="inline-group">
-							<label for="merge-order-input">Birleştirilecek Adisyon ID:</label>
-							<input id="merge-order-input" type="number" min="1" bind:value={mergeSourceOrderId} style="width:80px" />
-							<button class="btn-outline" onclick={mergeOrdersAction}>Adisyonu Birleştir</button>
-						</div>
-					</div>
-				{:else}
-					<p class="muted">Detay görmek veya sipariş eklemek için soldan bir masaya tıklayın.</p>
-				{/if}
-			</div>
-		</section>
-	{/if}
-
-	<!-- TAB 2: KDS KITCHEN DISPLAY (F-3, T-3) -->
-	{#if activeTab === 'kds'}
-		<section class="card">
-			<div class="card-header">
-				<div>
-					<h2>Gerçek Zamanlı Mutfak Ekranı (KDS) — Son Olay ID: #{kdsLastEventId}</h2>
-					<small class="muted">İstasyon yönlendirme (Soğuk/Sıcak/Bar), kurs sırası (1→2→3), gecikme uyarısı ve SSE olay telafisi.</small>
 				</div>
-				<div class="inline-group">
-					{#each ['all', 'cold', 'hot', 'bar'] as st}
-						<button
-							class="btn-outline {kdsStation === st ? 'active-filter' : ''}"
-							onclick={() => {
-								kdsStation = st as 'all' | 'cold' | 'hot' | 'bar';
-								refreshRoleData();
-							}}
-						>
-							{st.toUpperCase()}
-						</button>
-					{/each}
-					<button class="btn-primary" onclick={simulateKDSReconnectReplay}>
-						SSE Kopma Telafisi (Replay Test)
-					</button>
-				</div>
-			</div>
 
-			{#if kdsReplayedEvents.length > 0}
-				<div class="proof-box">
-					<strong>SSE Yeniden Bağlanma Telafisi (Olay Kimliği Üzerinden Geri Alınan Olaylar):</strong>
-					<span>Toplam {kdsReplayedEvents.length} olay başarıyla telafi edildi.</span>
-				</div>
-			{/if}
-
-			{#if kdsItems.length === 0}
-				<p class="muted">Mutfak kuyruğunda bekleyen aktif sipariş kalemi yok.</p>
-			{:else}
-				<div class="kds-grid">
-					{#each kdsItems as ticket}
-						<article class="kds-card {ticket.is_delayed ? 'delayed' : ''}">
-							<div class="kds-top">
-								<strong>{ticket.table_code} • #{ticket.order_id}</strong>
-								<span class="station-pill">{ticket.station.toUpperCase()} • Kurs {ticket.course}</span>
+				<div class="card">
+					{#if selectedOrder}
+						<div class="card-header">
+							<div>
+								<h2>Adisyon #{selectedOrder.id} ({selectedOrder.table_code})</h2>
+								<small class="muted"
+									>Optimistic Lock Versiyon: <code>v{selectedOrder.version}</code> • Durum:
+									<code>{selectedOrder.status}</code></small
+								>
 							</div>
-							<h3>{ticket.item_name} ({ticket.variant_name}) x{ticket.quantity}</h3>
-							{#if ticket.modifier_names}
-								<p class="mod-text">+ {ticket.modifier_names}</p>
-							{/if}
-							<div class="kds-meta">
-								<span>Süre: {ticket.elapsed_sec}sn / Tahmini: {ticket.estimated_total_sec}sn</span>
-								{#if ticket.is_delayed}
-									<span class="badge-err">GECİKTİ!</span>
-								{/if}
-							</div>
-							<div class="kds-buttons">
-								<button class="btn-outline" onclick={() => updateKDSStatus(ticket.order_item_id, 'PREPARING')}>
-									Hazırlanıyor
-								</button>
-								<button class="btn-primary" onclick={() => updateKDSStatus(ticket.order_item_id, 'READY')}>
-									Hazır
-								</button>
-								<button class="btn-outline" onclick={() => updateKDSStatus(ticket.order_item_id, 'SERVED')}>
-									Servis Edildi
-								</button>
-							</div>
-						</article>
-					{/each}
-				</div>
-			{/if}
-		</section>
-	{/if}
-
-	<!-- TAB 3: CASHIER, CAMPAIGNS & SPLIT BILL (F-4, F-6, T-2, T-5) -->
-	{#if activeTab === 'cashier'}
-		<section class="split-layout">
-			<div class="card">
-				<h2>Kampanya Motoru (T-5) & Hesap Bölüşme (T-2)</h2>
-				{#if !selectedOrder}
-					<p class="muted">Lütfen önce "Masa & Adisyon" sekmesinden açık bir adisyon seçin.</p>
-				{:else}
-					<p>
-						Seçili Adisyon: <strong>#{selectedOrder.id} ({selectedOrder.table_code})</strong> •
-						Kalan Tutar: <strong class="highlight">{formatTL(selectedOrder.remaining_kurus)}</strong>
-					</p>
-
-					<div class="section-block">
-						<h3>1. Kampanya ve Kupon Değerlendirme (En Avantajlı Kombinasyon)</h3>
-						<div class="form-row">
-							<input type="text" placeholder="Kupon Kodu (SOFRA50 / VIP20)" bind:value={couponInput} />
-							<button class="btn-primary" onclick={applyBestCampaignsToOrder}>
-								En Avantajlı Kampanyayı Uygula
+							<button class="btn-outline" onclick={verifyEventSourcingRebuild}>
+								Olay Günlüğünden Doğrula (T-1)
 							</button>
 						</div>
 
-						{#if selectedOrder.campaign_explanation && selectedOrder.campaign_explanation.length > 0}
-							<div class="campaign-list">
-								{#each selectedOrder.campaign_explanation as dec}
-									<div class="campaign-item {dec.applied ? 'applied' : 'skipped'}">
+						{#if rebuildProof}
+							<div class="proof-box">
+								<strong>Olay Günlüğü (Event Sourcing) Tutarlılık Kanıtı:</strong>
+								<span
+									>Durum: <code>{rebuildProof.is_consistent ? 'TUTARLI (PASS)' : 'UYUŞMAZLIK'}</code
+									></span
+								>
+							</div>
+						{/if}
+
+						<!-- Add Item Form -->
+						<div class="form-row">
+							<select
+								aria-label="Menü ürünü"
+								bind:value={addMenuItemId}
+								onchange={() => {
+									addVariantId = 0;
+									addModifierIds = [];
+								}}
+							>
+								{#each menuItems as m (m.id)}
+									<option value={m.id}>{m.name} ({formatTL(m.base_price_kurus)})</option>
+								{/each}
+							</select>
+							<input
+								aria-label="Adet"
+								type="number"
+								min="1"
+								max="100"
+								bind:value={addQuantity}
+								class="w-24"
+							/>
+							<button
+								class="btn-primary"
+								disabled={!['OPEN', 'PARTIALLY_PAID'].includes(selectedOrder.status)}
+								onclick={addItemToOrder}>Kalem Ekle</button
+							>
+						</div>
+						<div class="flex flex-wrap items-center gap-3">
+							<label class="flex flex-col gap-1"
+								>Porsiyon<select bind:value={addVariantId}
+									><option value={0}>Standart porsiyon</option
+									>{#each selectedMenuItem?.variants ?? [] as variant (variant.id)}<option
+											value={variant.id}
+											>{variant.name} ({formatTL(variant.price_delta_kurus)})</option
+										>{/each}</select
+								></label
+							>
+							{#each selectedMenuItem?.modifiers ?? [] as modifier (modifier.id)}<label
+									class="inline-flex items-center gap-2"
+									><input
+										class="size-5"
+										type="checkbox"
+										bind:group={addModifierIds}
+										value={modifier.id}
+									/>{modifier.name} ({formatTL(modifier.price_delta_kurus)})</label
+								>{/each}
+						</div>
+
+						<!-- Order Items List -->
+						<div class="item-list">
+							{#if selectedOrder.items.length === 0}
+								<p class="muted">Bu adisyonda henüz sipariş kalemi bulunmuyor.</p>
+							{:else}
+								{#each selectedOrder.items as item (item.id)}
+									<div class="order-item-row {item.is_cancelled ? 'cancelled' : ''}">
 										<div>
-											<strong>{dec.code} — {dec.name}</strong>
-											<span class="status-pill {dec.applied ? 'ok' : 'err'}">
-												{dec.applied ? 'UYGULANDI (-' + formatTL(dec.discount_kurus) + ')' : 'ELENDİ'}
-											</span>
+											<strong>{item.item_name}</strong> ({item.variant_name}) x{item.quantity}
+											{#if item.modifier_names}
+												<div class="mod-text">+ {item.modifier_names}</div>
+											{/if}
+											<small class="muted">
+												İstasyon: <code>{item.station}</code> • Kurs: {item.course} • KDS:
+												<code>{item.kds_status}</code>
+												{#if item.allocated_discount_kurus > 0}
+													• İndirim Payı: -{formatTL(item.allocated_discount_kurus)}
+												{/if}
+											</small>
 										</div>
-										<small>{dec.reason}</small>
+										<div class="item-actions">
+											<span>{formatTL(item.net_total_kurus)}</span>
+											{#if !item.is_cancelled && selectedOrder.paid_kurus === 0 && selectedOrder.status === 'OPEN'}
+												{#if item.kds_status === 'PENDING'}<button
+														class="btn-outline"
+														onclick={() => cancelOrderItem(item.id, false)}
+														>İptal et ve stoku iade et</button
+													>{/if}
+												<button
+													class="btn-danger-sm"
+													onclick={() => cancelOrderItem(item.id, true)}
+												>
+													İptal (Fire)
+												</button>
+											{:else if item.is_cancelled}
+												<span class="badge-err">İPTAL</span>
+											{/if}
+										</div>
 									</div>
 								{/each}
-							</div>
-						{/if}
-					</div>
-
-					<div class="section-block">
-						<h3>2. Hesap Bölüşme ve Ödeme (Nakit / Kart / Karışık + Bahşiş)</h3>
-						<div class="form-row">
-							<select bind:value={splitMode}>
-								<option value="FULL">Tam Ödeme (FULL)</option>
-								<option value="EQUAL">Eşit Bölüşme (EQUAL — Kuruş Kaymasız)</option>
-								<option value="CUSTOM">Özel Tutar / Kısmi Ödeme (CUSTOM)</option>
-								<option value="MIXED">Karışık Ödeme (Nakit + Kart)</option>
-							</select>
-							<select bind:value={paymentMethod}>
-								<option value="CARD">Kredi/Banka Kartı (CARD)</option>
-								<option value="CASH">Nakit (CASH)</option>
-								<option value="MIXED">Nakit + Kart (MIXED)</option>
-							</select>
-						</div>
-
-						{#if splitMode === 'EQUAL'}
-							<div class="form-row">
-								<label for="equal-parts-input">Kişi Sayısı:</label>
-								<input id="equal-parts-input" type="number" min="2" max="12" bind:value={equalSplitParts} style="width:70px" />
-								<button class="btn-outline" onclick={previewEqualSplit}>Kuruş Paylarını Hesapla</button>
-							</div>
-							{#if equalSharesPreview.length > 0}
-								<p class="muted">
-									Hesaplanan Kişi Başı Paylar:
-									{#each equalSharesPreview as sh, i}
-										<code>Pay #{i + 1}: {formatTL(sh)}</code>{' '}
-									{/each}
-								</p>
 							{/if}
-						{:else if splitMode === 'CUSTOM'}
-							<div class="form-row">
-								<label for="custom-amt-input">Özel Tutar (Kuruş):</label>
-								<input id="custom-amt-input" type="number" step="100" bind:value={customAmountKurus} />
-							</div>
-						{:else if splitMode === 'MIXED' || paymentMethod === 'MIXED'}
-							<div class="form-row">
-								<label for="mix-cash-input">Nakit (Kuruş):</label>
-								<input id="mix-cash-input" type="number" bind:value={mixedCashKurus} />
-								<label for="mix-card-input">Kart (Kuruş):</label>
-								<input id="mix-card-input" type="number" bind:value={mixedCardKurus} />
-							</div>
-						{/if}
-
-						<div class="form-row">
-							<label for="tip-input">Bahşiş (Kuruş):</label>
-							<input id="tip-input" type="number" min="0" step="500" bind:value={tipKurus} />
-							<button class="btn-primary" onclick={submitPayment}>Ödemeyi Tamamla</button>
 						</div>
+
+						<!-- Totals & Table Move/Merge -->
+						<div class="totals-bar">
+							<div>Ara Toplam: <strong>{formatTL(selectedOrder.subtotal_kurus)}</strong></div>
+							<div>İndirim: <strong>-{formatTL(selectedOrder.discount_kurus)}</strong></div>
+							<div>Net Toplam: <strong>{formatTL(selectedOrder.total_kurus)}</strong></div>
+							<div>
+								Kalan: <strong class="highlight">{formatTL(selectedOrder.remaining_kurus)}</strong>
+							</div>
+						</div>
+
+						<div class="sub-actions">
+							<div class="inline-group">
+								<label for="move-table-input">Masaya Taşı (ID):</label>
+								<select id="move-table-input" bind:value={moveTargetTableId}
+									>{#each tables.filter((t) => t.status === 'EMPTY') as table (table.id)}<option
+											value={table.id}>{table.code}</option
+										>{/each}</select
+								>
+								<button class="btn-outline" onclick={moveSelectedOrderTable}>Masayı Taşı</button>
+							</div>
+							<div class="inline-group">
+								<label for="merge-order-input">Birleştirilecek Adisyon ID:</label>
+								<select id="merge-order-input" bind:value={mergeSourceOrderId}
+									><option value={0}>Adisyon seçin</option
+									>{#each tables.filter((t) => t.active_order_id > 0 && t.active_order_id !== selectedOrder?.id) as table (table.id)}<option
+											value={table.active_order_id}>{table.code} · #{table.active_order_id}</option
+										>{/each}</select
+								>
+								<button class="btn-outline" onclick={mergeOrdersAction}>Adisyonu Birleştir</button>
+							</div>
+						</div>
+					{:else}
+						<p class="muted">Detay görmek veya sipariş eklemek için soldan bir masaya tıklayın.</p>
+					{/if}
+				</div>
+			</section>
+		{/if}
+
+		<!-- TAB 2: KDS KITCHEN DISPLAY (F-3, T-3) -->
+		{#if activeTab === 'kds'}
+			<section class="card">
+				<div class="card-header">
+					<div>
+						<h2>Gerçek Zamanlı Mutfak Ekranı (KDS) — Son Olay ID: #{kdsLastEventId}</h2>
+						<p class="text-info" role="status">{kdsConnection}</p>
+						<small class="muted"
+							>İstasyon yönlendirme (Soğuk/Sıcak/Bar), kurs sırası (1→2→3), gecikme uyarısı ve SSE
+							olay telafisi.</small
+						>
+					</div>
+					<div class="inline-group">
+						{#each ['all', 'cold', 'hot', 'bar'] as st (st)}
+							<button
+								class="btn-outline {kdsStation === st ? 'active-filter' : ''}"
+								onclick={() => {
+									kdsStation = st as 'all' | 'cold' | 'hot' | 'bar';
+									refreshRoleData();
+								}}
+							>
+								{st.toUpperCase()}
+							</button>
+						{/each}
+						<button class="btn-primary" onclick={simulateKDSReconnectReplay}>
+							SSE Kopma Telafisi (Replay Test)
+						</button>
+					</div>
+				</div>
+
+				{#if kdsReplayedEvents.length > 0}
+					<div class="proof-box">
+						<strong
+							>SSE Yeniden Bağlanma Telafisi (Olay Kimliği Üzerinden Geri Alınan Olaylar):</strong
+						>
+						<span>Toplam {kdsReplayedEvents.length} olay başarıyla telafi edildi.</span>
 					</div>
 				{/if}
-			</div>
 
-			<!-- Z-Report Summary Card -->
-			<div class="card">
-				<h2>Şube #{selectedBranchId} Vardiya ve Z Raporu (F-7, T-2)</h2>
-				{#if zReport}
-					<dl class="kv-list">
-						<div>
-							<dt>Vardiya Durumu</dt>
-							<dd><code>{zReport.shift_status}</code> (Vardiya #{zReport.shift_id})</dd>
-						</div>
-						<div>
-							<dt>Nakit Ödemeler Toplamı</dt>
-							<dd><strong>{formatTL(Number(zReport.cash_payments_kurus))}</strong></dd>
-						</div>
-						<div>
-							<dt>Kart Ödemeler Toplamı</dt>
-							<dd><strong>{formatTL(Number(zReport.card_payments_kurus))}</strong></dd>
-						</div>
-						<div>
-							<dt>Tahsilat Toplamı (Nakit + Kart)</dt>
-							<dd><strong>{formatTL(Number(zReport.total_payments_kurus))}</strong></dd>
-						</div>
-						<div>
-							<dt>Toplam Bahşiş</dt>
-							<dd>{formatTL(Number(zReport.total_tips_kurus))}</dd>
-						</div>
-						<div>
-							<dt>Toplam İndirim</dt>
-							<dd>{formatTL(Number(zReport.total_discount_kurus))}</dd>
-						</div>
-						<div>
-							<dt>Toplam Fire Maliyeti</dt>
-							<dd>{formatTL(Number(zReport.total_waste_kurus))}</dd>
-						</div>
-						<div>
-							<dt>Kuruş Mutabakat Durumu</dt>
-							<dd>
-								<span class="status-pill {zReport.is_balanced ? 'ok' : 'err'}">
-									{zReport.is_balanced ? 'TAM EŞİT (BALANCED)' : 'FARK VAR'}
-								</span>
-							</dd>
-						</div>
-					</dl>
+				{#if kdsItems.length === 0}
+					<p class="muted">Mutfak kuyruğunda bekleyen aktif sipariş kalemi yok.</p>
 				{:else}
-					<p class="muted">Z raporu için Kasiyer veya Müdür rolüyle giriş yapın.</p>
-				{/if}
-			</div>
-		</section>
-	{/if}
-
-	<!-- TAB 4: INVENTORY, SUB-RECIPES & VARIANCE REPORT (F-5, T-4) -->
-	{#if activeTab === 'inventory'}
-		<section class="split-layout">
-			<div class="card">
-				<div class="card-header">
-					<h2>Hammadde ve Yarı Mamul (Alt Reçete) Stoku</h2>
-					<button class="btn-primary" onclick={submitEndOfDayCount}>
-						Gün Sonu Sayımı Gönder (T-4)
-					</button>
-				</div>
-				{#if ingredients.length === 0}
-					<p class="muted">Stok verisi için Aşçı veya Müdür rolüyle giriş yapın.</p>
-				{:else}
-					<div class="item-list">
-						{#each ingredients as ing}
-							<div class="order-item-row">
-								<div>
-									<strong>{ing.name}</strong> (<code>{ing.code}</code>)
-									{#if ing.is_semi_finished}
-										<span class="station-pill">YARI MAMUL (ALT REÇETE)</span>
+					<div class="kds-grid">
+						{#each kdsItems as ticket (ticket.order_item_id)}
+							<article class="kds-card {ticket.is_delayed ? 'delayed' : ''}">
+								<div class="kds-top">
+									<strong>{ticket.table_code} • #{ticket.order_id}</strong>
+									<span class="station-pill"
+										>{ticket.station.toUpperCase()} • Kurs {ticket.course}</span
+									>
+								</div>
+								<h3>{ticket.item_name} ({ticket.variant_name}) x{ticket.quantity}</h3>
+								{#if ticket.modifier_names}
+									<p class="mod-text">+ {ticket.modifier_names}</p>
+								{/if}
+								<div class="kds-meta">
+									<span>Süre: {ticket.elapsed_sec}sn / Tahmini: {ticket.estimated_total_sec}sn</span
+									>
+									{#if ticket.is_delayed}
+										<span class="badge-err">GECİKTİ!</span>
 									{/if}
 								</div>
-								<div>
-									<strong>{ing.theoretical_qty_grams} {ing.unit}</strong>
-								</div>
-							</div>
+								{#if canCook}<div class="kds-buttons">
+										<button
+											class="btn-outline"
+											disabled={ticket.kds_status !== 'PENDING'}
+											onclick={() => updateKDSStatus(ticket.order_item_id, 'PREPARING')}
+										>
+											Hazırlanıyor
+										</button>
+										<button
+											class="btn-primary"
+											disabled={ticket.kds_status !== 'PREPARING'}
+											onclick={() => updateKDSStatus(ticket.order_item_id, 'READY')}
+										>
+											Hazır
+										</button>
+										<button
+											class="btn-outline"
+											disabled={ticket.kds_status !== 'READY'}
+											onclick={() => updateKDSStatus(ticket.order_item_id, 'SERVED')}
+										>
+											Servis Edildi
+										</button>
+									</div>{/if}
+							</article>
 						{/each}
 					</div>
 				{/if}
-			</div>
+			</section>
+		{/if}
 
-			<div class="card">
-				<h2>Gün Sonu Sayım Fark (Variance) Raporu & Fire</h2>
-				{#if varianceReport && Array.isArray(varianceReport.rows)}
-					<p class="muted">
-						Toplam Eksik/Fire: <strong>{varianceReport.total_deficit_grams} g</strong> •
-						Maliyet Farkı: <strong>{formatTL(Number(varianceReport.total_deficit_cost_kurus))}</strong>
-					</p>
-					<div class="item-list">
-						{#each (varianceReport.rows as Array<Record<string, unknown>>) as r}
-							<div class="order-item-row">
-								<div>
-									<strong>{r.ingredient_name}</strong>
-									<small class="muted">Teorik: {r.theoretical_grams}g | Sayım: {r.counted_grams}g</small>
-								</div>
-								<div>
-									<span class="status-pill {r.status === 'MATCH' ? 'ok' : 'err'}">
-										Fark: {r.variance_grams}g ({r.status})
-									</span>
-								</div>
-							</div>
-						{/each}
-					</div>
-				{:else}
-					<p class="muted">Sayım fark raporu için Şube Müdürü veya Merkez Yönetim rolüyle giriş yapın.</p>
-				{/if}
-			</div>
-		</section>
-	{/if}
+		<!-- TAB 3: CASHIER, CAMPAIGNS & SPLIT BILL (F-4, F-6, T-2, T-5) -->
+		{#if activeTab === 'cashier'}
+			<section class="split-layout">
+				<div class="card">
+					<h2>Kampanya Motoru (T-5) & Hesap Bölüşme (T-2)</h2>
+					{#if !selectedOrder}
+						<p class="muted">Lütfen önce "Masa & Adisyon" sekmesinden açık bir adisyon seçin.</p>
+					{:else}
+						<p>
+							Seçili Adisyon: <strong>#{selectedOrder.id} ({selectedOrder.table_code})</strong> •
+							Kalan Tutar:
+							<strong class="highlight">{formatTL(selectedOrder.remaining_kurus)}</strong>
+						</p>
 
-	<!-- TAB 5: HQ 8-BRANCH REPORT & APPEND-ONLY AUDIT LOGS (F-7) -->
-	{#if activeTab === 'hq'}
-		<section class="split-layout">
-			<div class="card">
-				<div class="card-header">
-					<h2>8 Şube Canlı Merkez Yönetim Raporu</h2>
-					<button class="btn-danger-sm" onclick={resetDemoDataAction}>
-						Demo Verisini Sıfırla (reset-demo)
-					</button>
-				</div>
-				{#if hqReport && Array.isArray(hqReport.branches)}
-					<div class="totals-bar">
-						<div>Toplam Ciro: <strong>{formatTL(Number(hqReport.grand_revenue_kurus))}</strong></div>
-						<div>Toplam Bahşiş: <strong>{formatTL(Number(hqReport.grand_tips_kurus))}</strong></div>
-						<div>Toplam Fire: <strong>{formatTL(Number(hqReport.grand_waste_kurus))}</strong></div>
-						<div>Dolu Masa: <strong>{hqReport.total_occupied_tables}</strong></div>
-					</div>
-					<div class="item-list">
-						{#each (hqReport.branches as Array<Record<string, unknown>>) as b}
-							<div class="order-item-row">
-								<div>
-									<strong>{b.code} — {b.name}</strong> ({b.city})
-									<small class="muted">Dolu Masa: {b.occupied_tables} • Sipariş: {b.total_orders}</small>
-								</div>
-								<div>
-									<strong>{formatTL(Number(b.revenue_kurus))}</strong>
-								</div>
+						<div class="section-block">
+							<h3>1. Kampanya ve Kupon Değerlendirme (En Avantajlı Kombinasyon)</h3>
+							<div class="form-row">
+								<input
+									aria-label="Kupon kodu"
+									type="text"
+									placeholder="Kupon kodu (isteğe bağlı)"
+									bind:value={couponInput}
+								/>
+								<button
+									class="btn-primary"
+									disabled={selectedOrder.paid_kurus > 0 || selectedOrder.status !== 'OPEN'}
+									onclick={applyBestCampaignsToOrder}
+								>
+									En Avantajlı Kampanyayı Uygula
+								</button>
 							</div>
-						{/each}
-					</div>
-				{:else}
-					<p class="muted">Merkez raporu için Merkez Yönetim veya Şube Müdürü rolüyle giriş yapın.</p>
-				{/if}
-			</div>
 
-			<div class="card">
-				<h2>Salt-Eklemeli Denetim Kaydı (<code>dz-audit-logs</code>)</h2>
-				{#if auditLogs.length === 0}
-					<p class="muted">Denetim kaydı görüntülemek için yönetici rolüyle giriş yapın.</p>
-				{:else}
-					<div class="item-list">
-						{#each auditLogs as log}
-							<div class="order-item-row">
-								<div>
-									<strong>#{log.id} • {log.action}</strong>
-									<small class="muted">Rol: <code>{log.actor_role}</code> • Varlık: {log.entity_type} #{log.entity_id}</small>
-								</div>
-								<small class="muted">{String(log.created_at).slice(11, 19)}</small>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</div>
-		</section>
-	{/if}
-
-	<!-- TAB 6: QR MENU (F-1) -->
-	{#if activeTab === 'menu'}
-		<section class="card">
-			<h2>Dijital QR Menü — Varyantlar ve Ek Seçenekler (F-1)</h2>
-			{#if menuItems.length === 0}
-				<p class="muted">Menü görmek için yukarıdan "Yenile" veya "Müşteri (QR Menü)" butonuna tıklayın.</p>
-			{:else}
-				<div class="kds-grid">
-					{#each menuItems as item}
-						<article class="kds-card">
-							<div class="kds-top">
-								<strong>{item.name}</strong>
-								<span class="station-pill">{formatTL(item.base_price_kurus)}</span>
-							</div>
-							<p class="muted">{item.description}</p>
-							<div>
-								<small><strong>Varyantlar:</strong></small>
-								<div class="tag-row">
-									{#each item.variants as v}
-										<span class="tag">{v.name} ({v.price_delta_kurus >= 0 ? '+' : ''}{formatTL(v.price_delta_kurus)})</span>
+							{#if selectedOrder.campaign_explanation && selectedOrder.campaign_explanation.length > 0}
+								<div class="campaign-list">
+									{#each selectedOrder.campaign_explanation as dec (dec.code)}
+										<div class="campaign-item {dec.applied ? 'applied' : 'skipped'}">
+											<div>
+												<strong>{dec.code} — {dec.name}</strong>
+												<span class="status-pill {dec.applied ? 'ok' : 'err'}">
+													{dec.applied
+														? 'UYGULANDI (-' + formatTL(dec.discount_kurus) + ')'
+														: 'ELENDİ'}
+												</span>
+											</div>
+											<small>{dec.reason}</small>
+										</div>
 									{/each}
 								</div>
+							{/if}
+						</div>
+
+						<div class="section-block">
+							<h3>2. Hesap Bölüşme ve Ödeme (Nakit / Kart / Karışık + Bahşiş)</h3>
+							<div class="form-row">
+								<select aria-label="Hesap bölüşme yöntemi" bind:value={splitMode}>
+									<option value="FULL">Tam Ödeme (FULL)</option>
+									<option value="EQUAL">Eşit Bölüşme (EQUAL — Kuruş Kaymasız)</option>
+									<option value="CUSTOM">Özel Tutar / Kısmi Ödeme (CUSTOM)</option>
+									<option value="BY_ITEM">Kaleme göre ödeme</option>
+									<option value="MIXED">Karışık Ödeme (Nakit + Kart)</option>
+								</select>
+								<select aria-label="Ödeme yöntemi" bind:value={paymentMethod}>
+									<option value="CARD">Kredi/Banka Kartı (CARD)</option>
+									<option value="CASH">Nakit (CASH)</option>
+									<option value="MIXED">Nakit + Kart (MIXED)</option>
+								</select>
 							</div>
-							{#if item.modifiers.length > 0}
+
+							{#if splitMode === 'EQUAL'}
+								<div class="form-row">
+									<label for="equal-parts-input">Kişi Sayısı:</label>
+									<input
+										id="equal-parts-input"
+										type="number"
+										min="2"
+										max="12"
+										bind:value={equalSplitParts}
+										style="width:70px"
+									/>
+									<button class="btn-outline" onclick={previewEqualSplit}
+										>Kuruş Paylarını Hesapla</button
+									>
+								</div>
+								{#if equalSharesPreview.length > 0}
+									<p class="muted">
+										Kalan kişi payları (her ödeme bir payı kapatır):
+										{#each equalSharesPreview as sh, i (i)}
+											<code class="mr-2">Pay #{i + 1}: {formatTL(sh)}</code>
+										{/each}
+									</p>
+								{/if}
+							{:else if splitMode === 'BY_ITEM'}
+								<div class="my-3 flex flex-col gap-2">
+									{#each selectedOrder.items.filter((item) => !item.is_cancelled && item.remaining_kurus > 0) as item (item.id)}<label
+											class="flex items-center justify-between gap-3 rounded-lg bg-surface-raised p-3"
+											><span class="flex items-center gap-2"
+												><input
+													type="checkbox"
+													class="size-5"
+													bind:group={selectedItemIdsForSplit}
+													value={item.id}
+												/>{item.item_name} ×{item.quantity}</span
+											><span>{formatTL(item.remaining_kurus)}</span></label
+										>{/each}
+								</div>
+							{:else if splitMode === 'CUSTOM'}
+								<div class="form-row">
+									<label for="custom-amt-input">Özel Tutar (Kuruş):</label>
+									<input
+										id="custom-amt-input"
+										type="number"
+										step="100"
+										bind:value={customAmountKurus}
+									/>
+								</div>
+							{:else if splitMode === 'MIXED' || paymentMethod === 'MIXED'}
+								<div class="form-row">
+									<label for="mix-cash-input">Nakit (Kuruş):</label>
+									<input id="mix-cash-input" type="number" bind:value={mixedCashKurus} />
+									<label for="mix-card-input">Kart (Kuruş):</label>
+									<input id="mix-card-input" type="number" bind:value={mixedCardKurus} />
+								</div>
+							{/if}
+
+							<div class="form-row">
+								<label for="tip-input">Bahşiş (Kuruş):</label>
+								<input id="tip-input" type="number" min="0" step="500" bind:value={tipKurus} />
+								<button
+									class="btn-primary"
+									disabled={selectedOrder.remaining_kurus <= 0 ||
+										(splitMode === 'BY_ITEM' && selectedItemIdsForSplit.length === 0)}
+									onclick={submitPayment}>Ödemeyi kaydet</button
+								>
+							</div>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Z-Report Summary Card -->
+				<div class="card">
+					<h2>Şube #{selectedBranchId} Vardiya ve Z Raporu (F-7, T-2)</h2>
+					<div class="my-4 flex flex-wrap items-end gap-3">
+						{#if zReport?.shift_status === 'OPEN'}
+							<label class="flex flex-col gap-1"
+								>Sayılmış kasa (kuruş)<input
+									type="number"
+									min="0"
+									placeholder={String(zReport.expected_cash_kurus ?? '')}
+									bind:value={closingCash}
+								/></label
+							>
+							<button class="btn-outline" onclick={() => changeShift('close')}
+								>Vardiyayı kapat</button
+							>
+						{:else}
+							<label class="flex flex-col gap-1"
+								>Açılış kasası (kuruş)<input
+									type="number"
+									min="0"
+									bind:value={openingCash}
+								/></label
+							>
+							<button class="btn-primary" onclick={() => changeShift('open')}
+								>Yeni vardiya aç</button
+							>
+						{/if}
+					</div>
+					{#if zReport}
+						<dl class="kv-list">
+							<div>
+								<dt>Vardiya Durumu</dt>
+								<dd><code>{zReport.shift_status}</code> (Vardiya #{zReport.shift_id})</dd>
+							</div>
+							<div>
+								<dt>Nakit Ödemeler Toplamı</dt>
+								<dd><strong>{formatTL(Number(zReport.cash_payments_kurus))}</strong></dd>
+							</div>
+							<div>
+								<dt>Kart Ödemeler Toplamı</dt>
+								<dd><strong>{formatTL(Number(zReport.card_payments_kurus))}</strong></dd>
+							</div>
+							<div>
+								<dt>Tahsilat Toplamı (Nakit + Kart)</dt>
+								<dd><strong>{formatTL(Number(zReport.total_payments_kurus))}</strong></dd>
+							</div>
+							<div>
+								<dt>Toplam Bahşiş</dt>
+								<dd>{formatTL(Number(zReport.total_tips_kurus))}</dd>
+							</div>
+							<div>
+								<dt>Toplam İndirim</dt>
+								<dd>{formatTL(Number(zReport.total_discount_kurus))}</dd>
+							</div>
+							<div>
+								<dt>Toplam Fire Maliyeti</dt>
+								<dd>{formatTL(Number(zReport.total_waste_kurus))}</dd>
+							</div>
+							<div>
+								<dt>Kuruş Mutabakat Durumu</dt>
+								<dd>
+									<span class="status-pill {zReport.is_balanced ? 'ok' : 'err'}">
+										{zReport.is_balanced ? 'TAM EŞİT (BALANCED)' : 'FARK VAR'}
+									</span>
+								</dd>
+							</div>
+						</dl>
+						<p class="text-text-soft">
+							Beklenen nakit kasa: {formatTL(
+								Number(zReport.expected_cash_kurus)
+							)}{#if zReport.shift_status === 'CLOSED'}
+								· Sayım farkı: {formatTL(Number(zReport.cash_variance_kurus))}{/if}
+						</p>
+					{:else}
+						<p class="muted">Z raporu için Kasiyer veya Müdür rolüyle giriş yapın.</p>
+					{/if}
+				</div>
+			</section>
+		{/if}
+
+		<!-- TAB 4: INVENTORY, SUB-RECIPES & VARIANCE REPORT (F-5, T-4) -->
+		{#if activeTab === 'inventory'}
+			<section class="split-layout">
+				<div class="card">
+					<div class="card-header">
+						<h2>Hammadde ve Yarı Mamul (Alt Reçete) Stoku</h2>
+						{#if canManage}<button
+								class="btn-primary"
+								onclick={submitEndOfDayCount}
+								disabled={!Object.values(counts).some((value) => value !== undefined)}
+							>
+								Gün Sonu Sayımı Gönder (T-4)
+							</button>{/if}
+					</div>
+					{#if ingredients.length === 0}
+						<p class="muted">Stok verisi için Aşçı veya Müdür rolüyle giriş yapın.</p>
+					{:else}
+						<div class="item-list">
+							{#each ingredients as ing (String(ing.id))}
+								<div class="order-item-row">
+									<div>
+										<strong>{ing.name}</strong> (<code>{ing.code}</code>)
+										{#if ing.is_semi_finished}
+											<span class="station-pill">YARI MAMUL (ALT REÇETE)</span>
+										{/if}
+									</div>
+									<div>
+										<strong>{ing.theoretical_qty_grams} {ing.unit}</strong>
+										{#if canManage && !ing.is_semi_finished}<label
+												class="mt-2 flex flex-col gap-1 text-sm"
+												>Fiziksel sayım ({ing.unit})<input
+													type="number"
+													min="0"
+													step="1"
+													placeholder="Henüz sayılmadı"
+													bind:value={counts[String(ing.code)]}
+												/></label
+											>{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+
+				<div class="card">
+					<h2>Gün Sonu Sayım Fark (Variance) Raporu & Fire</h2>
+					<p class="text-sm text-text-muted">
+						Yalnızca fiziksel olarak saydığınız hammaddeleri girin. Yarı mamul tüketimi alt
+						reçeteleri üzerinden izlenir.
+					</p>
+					{#if varianceReport && Array.isArray(varianceReport.rows)}
+						<p class="muted">
+							Toplam Eksik/Fire: <strong>{varianceReport.total_deficit_grams} g</strong> • Maliyet
+							Farkı: <strong>{formatTL(Number(varianceReport.total_deficit_cost_kurus))}</strong>
+						</p>
+						<div class="item-list">
+							{#each varianceReport.rows as Array<Record<string, unknown>> as r (String(r.ingredient_code))}
+								<div class="order-item-row">
+									<div>
+										<strong>{r.ingredient_name}</strong>
+										<small class="muted"
+											>Teorik: {r.theoretical_grams}g | Sayım: {r.counted_grams}g</small
+										>
+									</div>
+									<div>
+										<span class="status-pill {r.status === 'MATCH' ? 'ok' : 'err'}">
+											Fark: {r.variance_grams}g ({r.status})
+										</span>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p class="muted">
+							Sayım fark raporu için Şube Müdürü veya Merkez Yönetim rolüyle giriş yapın.
+						</p>
+					{/if}
+				</div>
+			</section>
+			<section class="card">
+				<h2>Son stok ve fire hareketleri</h2>
+				{#if stockMovements.length === 0}<p class="muted">
+						Henüz stok hareketi yok. Sipariş eklendiğinde reçete tüketimi burada görünür.
+					</p>{:else}<div class="item-list">
+						{#each stockMovements as movement (String(movement.id))}<div class="order-item-row">
 								<div>
-									<small><strong>Ek Seçenekler (Modifier):</strong></small>
+									<strong>{movement.ingredient_name}</strong>
+									<p class="text-sm text-text-muted">{movement.reason}</p>
+								</div>
+								<span class="tabular-nums"
+									>{movement.delta_grams} g · {formatTL(Number(movement.cost_kurus))}</span
+								>
+							</div>{/each}
+					</div>{/if}
+			</section>
+		{/if}
+
+		<!-- TAB 5: HQ 8-BRANCH REPORT & APPEND-ONLY AUDIT LOGS (F-7) -->
+		{#if activeTab === 'hq'}
+			<section class="split-layout">
+				<div class="card">
+					<div class="card-header">
+						<h2>8 Şube Canlı Merkez Yönetim Raporu</h2>
+						{#if resetArmed}<div class="flex flex-wrap items-center gap-2">
+								<span class="text-danger">Sipariş ve ödemeler silinecek.</span><button
+									class="btn-danger-sm"
+									onclick={() => {
+										resetArmed = false;
+										void resetDemoDataAction();
+									}}>Sıfırlamayı onayla</button
+								><button class="btn-outline" onclick={() => (resetArmed = false)}>Vazgeç</button>
+							</div>{:else}<button class="btn-danger-sm" onclick={() => (resetArmed = true)}
+								>Demo verisini sıfırla</button
+							>{/if}
+					</div>
+					{#if hqReport && Array.isArray(hqReport.branches)}
+						<div class="totals-bar">
+							<div>
+								Toplam Ciro: <strong>{formatTL(Number(hqReport.grand_revenue_kurus))}</strong>
+							</div>
+							<div>
+								Toplam Bahşiş: <strong>{formatTL(Number(hqReport.grand_tips_kurus))}</strong>
+							</div>
+							<div>
+								Toplam Fire: <strong>{formatTL(Number(hqReport.grand_waste_kurus))}</strong>
+							</div>
+							<div>Dolu Masa: <strong>{hqReport.total_occupied_tables}</strong></div>
+						</div>
+						<div class="item-list">
+							{#each hqReport.branches as Array<Record<string, unknown>> as b (String(b.branch_id))}
+								<div class="order-item-row">
+									<div>
+										<strong>{b.code} — {b.name}</strong> ({b.city})
+										<small class="muted"
+											>Dolu Masa: {b.occupied_tables} • Sipariş: {b.total_orders}</small
+										>
+									</div>
+									<div>
+										<strong>{formatTL(Number(b.revenue_kurus))}</strong>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p class="muted">Merkez raporu için Merkez Yönetim rolüyle giriş yapın.</p>
+					{/if}
+				</div>
+
+				<div class="card">
+					<h2>Salt-Eklemeli Denetim Kaydı (<code>dz-audit-logs</code>)</h2>
+					{#if auditLogs.length === 0}
+						<p class="muted">Denetim kaydı görüntülemek için yönetici rolüyle giriş yapın.</p>
+					{:else}
+						<div class="item-list">
+							{#each auditLogs as log (String(log.id))}
+								<div class="order-item-row">
+									<div>
+										<strong>#{log.id} • {log.action}</strong>
+										<small class="muted"
+											>Rol: <code>{log.actor_role}</code> • Varlık: {log.entity_type} #{log.entity_id}</small
+										>
+									</div>
+									<small class="muted">{String(log.created_at).slice(11, 19)}</small>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			</section>
+		{/if}
+
+		<!-- TAB 6: QR MENU (F-1) -->
+		{#if activeTab === 'menu'}
+			<section class="card">
+				<h2>Dijital QR Menü — Varyantlar ve Ek Seçenekler (F-1)</h2>
+				{#if menuItems.length === 0}
+					<p class="muted">
+						Menü görmek için yukarıdan "Yenile" veya "Müşteri (QR Menü)" butonuna tıklayın.
+					</p>
+				{:else}
+					<div class="kds-grid">
+						{#each menuItems as item (item.id)}
+							<article class="kds-card">
+								<div class="kds-top">
+									<strong>{item.name}</strong>
+									<span class="station-pill">{formatTL(item.base_price_kurus)}</span>
+								</div>
+								<p class="muted">{item.description}</p>
+								<div>
+									<small><strong>Varyantlar:</strong></small>
 									<div class="tag-row">
-										{#each item.modifiers as m}
-											<span class="tag">{m.name} (+{formatTL(m.price_delta_kurus)})</span>
+										{#each item.variants as v (v.id)}
+											<span class="tag"
+												>{v.name} ({v.price_delta_kurus >= 0 ? '+' : ''}{formatTL(
+													v.price_delta_kurus
+												)})</span
+											>
 										{/each}
 									</div>
 								</div>
-							{/if}
-						</article>
-					{/each}
-				</div>
-			{/if}
-		</section>
-	{/if}
-
-	<!-- TAB 7: INFRASTRUCTURE HEALTH & POSTGRESQL 16 DIAGNOSTICS -->
-	{#if activeTab === 'infra'}
-		<section class="split-layout">
-			<article class="card">
-				<div class="card-header">
-					<h2>Backend Servisi (Go + Fiber)</h2>
-					{#if health?.status === 'healthy'}
-						<span class="status-pill ok">SAĞLIKLI (200 OK)</span>
-					{:else}
-						<span class="status-pill err">KESİNTİ</span>
-					{/if}
-				</div>
-				{#if health}
-					<dl class="kv-list">
-						<div><dt>Servis</dt><dd><code>{health.service}</code></dd></div>
-						<div><dt>Uptime</dt><dd>{health.uptime_seconds} sn</dd></div>
-						<div><dt>DB Ping</dt><dd>{health.database.latency_ms.toFixed(2)} ms</dd></div>
-						<div><dt>Havuz (Aktif / Toplam / Maks)</dt><dd>{health.database.pool.acquired_conns} / {health.database.pool.total_conns} / {health.database.pool.max_conns}</dd></div>
-					</dl>
+								{#if item.modifiers.length > 0}
+									<div>
+										<small><strong>Ek Seçenekler (Modifier):</strong></small>
+										<div class="tag-row">
+											{#each item.modifiers as m (m.id)}
+												<span class="tag">{m.name} (+{formatTL(m.price_delta_kurus)})</span>
+											{/each}
+										</div>
+									</div>
+								{/if}
+							</article>
+						{/each}
+					</div>
 				{/if}
-			</article>
+			</section>
+		{/if}
 
-			<article class="card">
-				<div class="card-header">
-					<h2>PostgreSQL 16 (<code>dz-</code> Şeması)</h2>
-					{#if dbDiag?.connected}
-						<span class="status-pill ok">BAĞLI (pgx/v5)</span>
-					{:else}
-						<span class="status-pill err">BAĞLANTI YOK</span>
+		<!-- TAB 7: INFRASTRUCTURE HEALTH & POSTGRESQL 16 DIAGNOSTICS -->
+		{#if activeTab === 'infra'}
+			<section class="split-layout">
+				<article class="card">
+					<div class="card-header">
+						<h2>Backend Servisi (Go + Fiber)</h2>
+						{#if health?.status === 'healthy'}
+							<span class="status-pill ok">SAĞLIKLI (200 OK)</span>
+						{:else}
+							<span class="status-pill err">KESİNTİ</span>
+						{/if}
+					</div>
+					{#if health}
+						<dl class="kv-list">
+							<div>
+								<dt>Servis</dt>
+								<dd><code>{health.service}</code></dd>
+							</div>
+							<div>
+								<dt>Uptime</dt>
+								<dd>{health.uptime_seconds} sn</dd>
+							</div>
+							<div>
+								<dt>DB Ping</dt>
+								<dd>{health.database.latency_ms.toFixed(2)} ms</dd>
+							</div>
+							<div>
+								<dt>Havuz (Aktif / Toplam / Maks)</dt>
+								<dd>
+									{health.database.pool.acquired_conns} / {health.database.pool.total_conns} / {health
+										.database.pool.max_conns}
+								</dd>
+							</div>
+						</dl>
 					{/if}
-				</div>
-				{#if dbDiag}
-					<dl class="kv-list">
-						<div><dt>Veritabanı / Kullanıcı</dt><dd><code>{dbDiag.current_database}</code> / <code>{dbDiag.current_user}</code></dd></div>
-						<div><dt>Sorgu Gecikmesi</dt><dd>{dbDiag.latency_ms.toFixed(2)} ms</dd></div>
-						<div><dt>Toplam Kontrol</dt><dd>{dbDiag.total_checks}</dd></div>
-					</dl>
-				{/if}
-			</article>
-		</section>
-	{/if}
+				</article>
+
+				<article class="card">
+					<div class="card-header">
+						<h2>PostgreSQL 16 (<code>dz-</code> Şeması)</h2>
+						{#if dbDiag?.connected}
+							<span class="status-pill ok">BAĞLI (pgx/v5)</span>
+						{:else if dbDiag}
+							<span class="status-pill err">BAĞLANTI YOK</span>
+						{/if}
+					</div>
+					{#if dbDiag}
+						<dl class="kv-list">
+							<div>
+								<dt>Veritabanı / Kullanıcı</dt>
+								<dd><code>{dbDiag.current_database}</code> / <code>{dbDiag.current_user}</code></dd>
+							</div>
+							<div>
+								<dt>Sorgu Gecikmesi</dt>
+								<dd>{dbDiag.latency_ms.toFixed(2)} ms</dd>
+							</div>
+							<div>
+								<dt>Toplam Kontrol</dt>
+								<dd>{dbDiag.total_checks}</dd>
+							</div>
+						</dl>
+					{/if}
+				</article>
+			</section>
+		{/if}
+	</fieldset>
 </main>
-
-<style>
-	@reference "./layout.css";
-
-	.container {
-		@apply mx-auto flex w-full max-w-[1380px] flex-col gap-4 px-[clamp(0.9rem,3vw,2.25rem)] pb-12 pt-[clamp(1rem,2.5vw,2rem)];
-	}
-
-	.topbar {
-		@apply flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-[clamp(1rem,2vw,1.5rem)];
-	}
-
-	.badge {
-		@apply mb-1 inline-block rounded-full bg-info-soft px-3 py-1 text-xs font-bold tracking-[0.025em] text-info;
-	}
-
-	h1 {
-		@apply m-0 text-[clamp(1.35rem,2.4vw,1.8rem)] font-semibold tracking-[-0.025em] text-text;
-	}
-
-	h2 {
-		@apply m-0 text-[1.08rem] font-semibold tracking-[-0.012em] text-text;
-	}
-
-	h3 {
-		@apply m-0 mb-2 text-[0.96rem] font-semibold text-text-soft;
-	}
-
-	p {
-		@apply my-2;
-	}
-
-	.branch-picker,
-	.auth-header,
-	.tile-top,
-	.card-header,
-	.kds-top,
-	.kds-meta,
-	.kds-buttons {
-		@apply flex items-center justify-between gap-3;
-	}
-
-	.branch-picker,
-	.role-buttons,
-	.tabs,
-	.form-row,
-	.sub-actions,
-	.inline-group,
-	.kds-top,
-	.kds-meta,
-	.kds-buttons {
-		@apply flex-wrap;
-	}
-
-	.branch-picker {
-		@apply gap-2;
-	}
-
-	.auth-bar {
-		@apply flex flex-col gap-3;
-	}
-
-	.auth-header,
-	label,
-	.tile-meta {
-		@apply text-text-soft;
-	}
-
-	.active-user {
-		@apply ml-2 text-[0.9rem] text-success;
-	}
-
-	.muted {
-		@apply text-text-muted;
-	}
-
-	code {
-		@apply rounded bg-surface-soft px-1 py-px text-[0.9em] text-info;
-	}
-
-	select,
-	input {
-		@apply min-h-[42px] rounded-lg border border-border-strong bg-surface-raised px-3 py-2 text-[0.88rem] text-text;
-	}
-
-	select:hover,
-	input:hover {
-		@apply border-info;
-	}
-
-	select:focus-visible,
-	input:focus-visible,
-	button:focus-visible {
-		@apply outline-3 outline-offset-2 outline-focus/70;
-	}
-
-	button {
-		@apply transition duration-150;
-	}
-
-	button:disabled {
-		@apply cursor-not-allowed opacity-[0.55];
-	}
-
-	.card {
-		@apply rounded-2xl border border-border bg-surface p-5;
-	}
-
-	.role-buttons {
-		@apply flex gap-2;
-	}
-
-	.btn-role,
-	.btn-outline,
-	.tabs button {
-		@apply min-h-[42px] cursor-pointer rounded-lg border border-border bg-surface-raised px-4 py-2 font-semibold text-text-soft;
-	}
-
-	.btn-role {
-		@apply text-[0.84rem];
-	}
-
-	.btn-role:hover,
-	.btn-outline:hover,
-	.tabs button:hover {
-		@apply border-info bg-surface-soft text-text;
-	}
-
-	.btn-role.active {
-		@apply border-accent bg-accent text-accent-ink;
-	}
-
-	.tabs {
-		@apply sticky top-3 z-[5] flex gap-2 overflow-x-auto rounded-[14px] border border-border bg-bg/95 p-2;
-	}
-
-	.tabs button {
-		@apply shrink-0 whitespace-nowrap text-[0.86rem];
-	}
-
-	.tabs button.selected {
-		@apply border-info bg-info-soft text-info;
-	}
-
-	.split-layout {
-		@apply grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4;
-	}
-
-	.table-grid {
-		@apply mt-4 grid grid-cols-[repeat(auto-fill,minmax(145px,1fr))] gap-3;
-	}
-
-	.table-tile {
-		@apply flex min-h-28 cursor-pointer flex-col gap-1 rounded-xl border border-border bg-surface-raised p-3 text-left text-text-soft;
-	}
-
-	.table-tile:hover {
-		@apply -translate-y-px border-info bg-surface-soft;
-	}
-
-	.table-tile.occupied {
-		@apply border-warning bg-warning-soft;
-	}
-
-	.table-tile.occupied:hover {
-		@apply -translate-y-px border-warning bg-warning-soft;
-	}
-
-	.table-tile.focused {
-		@apply outline-3 outline-offset-2 outline-focus;
-	}
-
-	.status-tag {
-		@apply rounded px-2 py-px text-[0.7rem] font-bold text-text-soft;
-		@apply bg-surface-soft;
-	}
-
-	.table-tile.occupied .status-tag {
-		@apply bg-warning text-warning-ink;
-	}
-
-	.tile-price {
-		@apply text-[0.95rem] font-bold text-warning;
-	}
-
-	.card-header {
-		@apply mb-5;
-	}
-
-	.form-row {
-		@apply my-3 flex items-center gap-2;
-	}
-
-	.item-list {
-		@apply mt-3 flex max-h-[360px] flex-col gap-2 overflow-y-auto;
-	}
-
-	.order-item-row {
-		@apply flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-raised px-3 py-2;
-	}
-
-	.order-item-row:hover,
-	.kds-card:hover {
-		@apply border-border-strong;
-	}
-
-	.order-item-row.cancelled {
-		@apply opacity-55 line-through;
-	}
-
-	.item-actions {
-		@apply flex items-center gap-3;
-	}
-
-	.totals-bar {
-		@apply mt-4 flex flex-wrap justify-between gap-3 rounded-lg border border-border-strong bg-surface-raised px-4 py-3 text-text-soft;
-	}
-
-	.highlight {
-		@apply text-[1.05rem] text-warning;
-	}
-
-	.sub-actions {
-		@apply mt-3 flex gap-3;
-	}
-
-	.inline-group {
-		@apply flex items-center gap-2;
-	}
-
-	.kds-grid {
-		@apply mt-3 grid grid-cols-[repeat(auto-fill,minmax(270px,1fr))] gap-4;
-	}
-
-	.kds-card {
-		@apply flex flex-col gap-2 rounded-xl border border-border bg-surface-raised p-4;
-	}
-
-	.kds-card.delayed {
-		@apply border-danger bg-danger-soft;
-	}
-
-	.station-pill {
-		@apply rounded-full bg-info-soft px-2 py-1 text-[0.72rem] font-bold text-info;
-	}
-
-	.btn-primary {
-		@apply cursor-pointer rounded-lg border-0 bg-accent px-4 py-2 font-bold text-accent-ink;
-	}
-
-	.btn-primary:hover {
-		@apply -translate-y-px bg-accent-strong;
-	}
-
-	.btn-outline.active-filter {
-		@apply border-info bg-info-soft text-info;
-	}
-
-	.btn-danger-sm {
-		@apply cursor-pointer rounded-md border border-danger bg-danger-soft px-2 py-1 text-[0.78rem] text-danger;
-	}
-
-	.btn-danger-sm:hover {
-		@apply bg-danger text-text;
-	}
-
-	.alert-error {
-		@apply rounded-lg border border-danger bg-danger-soft px-4 py-3 text-danger;
-	}
-
-	.alert-ok {
-		@apply rounded-lg border border-success bg-success-soft px-4 py-3 text-success;
-	}
-
-	.proof-box {
-		@apply mb-3 flex flex-wrap justify-between gap-2 rounded-lg border border-info bg-info-soft px-4 py-3 text-text-soft;
-	}
-
-	.campaign-list {
-		@apply mt-2 flex flex-col gap-2;
-	}
-
-	.campaign-item {
-		@apply flex flex-col gap-1 rounded-lg border border-border bg-surface-raised px-3 py-2;
-	}
-
-	.campaign-item.applied {
-		@apply border-success;
-	}
-
-	.status-pill {
-		@apply rounded-full px-2 py-1 text-[0.72rem] font-bold;
-	}
-
-	.status-pill.ok {
-		@apply bg-success-soft text-success;
-	}
-
-	.status-pill.err,
-	.badge-err {
-		@apply rounded bg-danger-soft px-2 py-1 text-[0.72rem] font-bold text-danger;
-	}
-
-	.kv-list {
-		@apply m-0 flex flex-col gap-3;
-	}
-
-	.kv-list div {
-		@apply flex justify-between border-b border-border pb-2;
-	}
-
-	.tag-row {
-		@apply mt-1 flex flex-wrap gap-1;
-	}
-
-	.tag {
-		@apply rounded bg-surface-soft px-2 py-1 text-xs text-text-soft;
-	}
-
-	.mod-text {
-		@apply my-1 text-[0.8rem] text-info;
-	}
-
-	.section-block {
-		@apply mt-4 border-t border-border pt-4;
-	}
-
-	@media (max-width: 768px) {
-		.container {
-			@apply px-3;
-		}
-
-		.topbar,
-		.card {
-			@apply rounded-[13px];
-		}
-
-		.tabs {
-			@apply top-2;
-			@apply mx-[-0.2rem];
-		}
-
-		.split-layout {
-			@apply grid-cols-[minmax(0,1fr)];
-		}
-
-		.order-item-row {
-			@apply flex-col items-start;
-		}
-	}
-</style>
-
