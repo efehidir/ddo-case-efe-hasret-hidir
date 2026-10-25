@@ -125,12 +125,12 @@ func (s *POSService) RegisterPOSRoutes(app *fiber.App) {
 	api.Get("/orders/:id",
 		auth.RequireAuth(s.cfg.JWTSecret),
 		auth.RequireRoles(auth.RoleWaiter, auth.RoleCashier, auth.RoleChef, auth.RoleBranchManager, auth.RoleHQManager),
-		s.guard(s.handleGetOrder),
+		s.guard(s.snapshot(s.handleGetOrder)),
 	)
 	api.Get("/orders/:id/rebuild",
 		auth.RequireAuth(s.cfg.JWTSecret),
 		auth.RequireRoles(auth.RoleWaiter, auth.RoleCashier, auth.RoleBranchManager, auth.RoleHQManager),
-		s.guard(s.handleRebuildOrderFromEvents),
+		s.guard(s.snapshot(s.handleRebuildOrderFromEvents)),
 	)
 	api.Post("/orders/:id/items",
 		auth.RequireAuth(s.cfg.JWTSecret),
@@ -175,7 +175,7 @@ func (s *POSService) RegisterPOSRoutes(app *fiber.App) {
 	api.Get("/kds/items",
 		auth.RequireAuth(s.cfg.JWTSecret),
 		auth.RequireRoles(auth.RoleChef, auth.RoleWaiter, auth.RoleBranchManager, auth.RoleHQManager),
-		s.guard(s.handleListKDSItems),
+		s.guard(s.snapshot(s.handleListKDSItems)),
 	)
 	api.Patch("/kds/items/:itemId/status",
 		auth.RequireAuth(s.cfg.JWTSecret),
@@ -197,7 +197,7 @@ func (s *POSService) RegisterPOSRoutes(app *fiber.App) {
 	api.Get("/inventory",
 		auth.RequireAuth(s.cfg.JWTSecret),
 		auth.RequireRoles(auth.RoleChef, auth.RoleBranchManager, auth.RoleHQManager),
-		s.guard(s.handleGetInventory),
+		s.guard(s.snapshot(s.handleGetInventory)),
 	)
 	api.Post("/inventory/count",
 		auth.RequireAuth(s.cfg.JWTSecret),

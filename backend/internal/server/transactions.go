@@ -38,6 +38,25 @@ func (s *POSService) beginTx(ctx context.Context) (pgx.Tx, error) {
 	return s.pool.Begin(ctx)
 }
 
+// snapshot keeps related SELECTs (header/items or KDS tickets/event cursor) on
+// the same MVCC snapshot so a concurrent commit cannot produce a mixed response.
+func (s *POSService) snapshot(next fiber.Handler) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx := c.UserContext()
+		tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback(context.Background()) }()
+		c.SetUserContext(context.WithValue(ctx, requestTxKey{}, tx))
+		defer c.SetUserContext(ctx)
+		if err := next(c); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
+}
+
 func canAccessBranch(claims auth.Claims, branchID int64) bool {
 	return claims.Role == auth.RoleHQManager || (branchID > 0 && claims.BranchID == branchID)
 }

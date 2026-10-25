@@ -182,9 +182,13 @@ func (s *POSService) handleReplayKDSEvents(c *fiber.Ctx) error {
 	claims, _ := auth.GetClaims(c)
 	branchID := s.resolveBranchID(c, claims)
 
-	sinceID, _ := strconv.ParseInt(c.Query("since_event_id", "0"), 10, 64)
-	if lastHeader := c.Get("Last-Event-ID"); lastHeader != "" && sinceID == 0 {
-		sinceID, _ = strconv.ParseInt(lastHeader, 10, 64)
+	rawCursor := c.Query("since_event_id", "0")
+	if lastHeader := c.Get("Last-Event-ID"); lastHeader != "" {
+		rawCursor = lastHeader
+	}
+	sinceID, err := strconv.ParseInt(rawCursor, 10, 64)
+	if err != nil || sinceID < 0 {
+		return auth.RespondError(c, 400, "INVALID_CURSOR", "Geçersiz mutfak olay kimliği.")
 	}
 
 	rows, err := s.queries(c.UserContext()).Query(c.UserContext(), `

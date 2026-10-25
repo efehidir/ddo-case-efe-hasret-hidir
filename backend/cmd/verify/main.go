@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/efehidir/ddo/backend/internal/demogate"
 )
 
 type checkResult struct {
@@ -29,6 +32,10 @@ type verifier struct {
 }
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	apiURL := os.Getenv("API_URL")
 	if apiURL == "" {
 		apiURL = "http://localhost:8080"
@@ -52,12 +59,28 @@ func main() {
 	fmt.Println("================================================================================")
 
 	v.waitForReady()
-
-	// Reset to clean deterministic seed before running verification suite
-	_, _, _, _ = v.doJSON(http.MethodPost, "/api/v1/admin/reset-demo", "", "", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	release, err := demogate.Acquire(ctx)
+	if err != nil {
+		fmt.Printf("DEMO-ISOLATION | FAIL | %v\n", err)
+		return 1
+	}
+	defer release()
 
 	v.runCheck("HEALTH", "GET /health, GET /_hz/cc64, X-DDO-Case başlığı ve DB sağlık kontrolü", v.verifyHealthAndHeaders)
 	v.runCheck("AUTH-RBAC", "Kimlik doğrulama (seed.ceylan, yanlış parola 401, yetkisiz rol 403)", v.verifyAuthAndRBAC)
+	v.runCheck("RESET", "Yetkili ve atomik deterministik demo sıfırlama", func() (string, error) {
+		_, status, _, err := v.doJSON(http.MethodPost, "/api/v1/admin/reset-demo", v.tokens["hq_manager"], "", nil)
+		if err != nil || status != 200 {
+			return "", fmt.Errorf("reset failed: status=%d err=%v", status, err)
+		}
+		return "Deterministik seed yeniden oluşturuldu", nil
+	})
+	if len(os.Args) > 1 && os.Args[1] == "--reset-only" {
+		return v.printSummary()
+	}
+	v.runCheck("FRONTEND", "Frontend HTTP ve SSR yanıtı", v.verifyFrontend)
 	v.runCheck("F-1", "Menü, varyantlar ve ek seçenekler (modifier) + Idempotency-Key", v.verifyF1MenuVariantsModifiers)
 	v.runCheck("F-2", "Masa ve adisyon yönetimi (Masa açma, kalem ekleme, taşıma)", v.verifyF2TablesAndOrders)
 	v.runCheck("F-3", "Mutfak ekranı (KDS) ve istasyonlar (soğuk/sıcak/bar)", v.verifyF3KitchenDisplay)
@@ -70,8 +93,16 @@ func main() {
 	v.runCheck("T-3", "Zorlu Görev 3: Gerçek zamanlı KDS, kurs sırası, gecikme ve SSE kopma telafisi (replay)", v.verifyT3RealtimeKDSReplay)
 	v.runCheck("T-4", "Zorlu Görev 4: Ürün -> Reçete -> Yarı Mamul (Alt Reçete) -> Hammadde ve Gün Sonu Sayım Farkı", v.verifyT4SubRecipeAndVariance)
 	v.runCheck("T-5", "Zorlu Görev 5: Kampanya motoru en avantajlı kombinasyon seçimi ve açıklanabilirlik", v.verifyT5CampaignOptimizer)
+	v.runCheck("SECURITY", "Şube, kaynak sahipliği ve demo sıfırlama yetkileri", v.verifySecurityRegression)
+	v.runCheck("IDEMPOTENCY", "Eşzamanlı tekrar, gövde çakışması ve kullanıcı kapsamı", v.verifyIdempotencyRegression)
+	v.runCheck("PAYMENT", "Kalem bakiyeleri ve ödeme sonrası değişiklikler", v.verifyPaymentRegression)
+	v.runCheck("STOCK", "İptal iadesi ve gerçek reçete fire maliyeti", v.verifyStockRegression)
+	v.runCheck("SSE-REPLAY", "200'den fazla olayın eksiksiz SSE telafisi", v.verifyLargeReplay)
+	v.runCheck("SSE-LIVE", "Bağlantı açıkken yeni olay teslimi ve Last-Event-ID", v.verifyLiveSSE)
+	v.runCheck("SNAPSHOT", "Eşzamanlı yazma sırasında tutarlı okuma", v.verifyReadSnapshot)
+	v.runCheck("SHIFT", "Vardiya yarışı, tarihsel Z raporu ve yeni vardiya", v.verifyShiftRegression)
 
-	v.printSummaryAndExit()
+	return v.printSummary()
 }
 
 func (v *verifier) waitForReady() {
@@ -249,7 +280,7 @@ func (v *verifier) verifyF2TablesAndOrders() (string, error) {
 	_, stItem2, _, _ := v.doJSON(http.MethodPost, fmt.Sprintf("/api/v1/orders/%d/items", ord.ID), v.tokens["waiter"], "", map[string]any{
 		"menu_item_id": 1,
 		"quantity":     1,
-		"variant_id":   2, // +16000 kr
+		"variant_id":   2,          // +16000 kr
 		"modifier_ids": []int64{1}, // +4000 kr -> total 56000 kr
 	})
 	if stItem1 != http.StatusCreated || stItem2 != http.StatusCreated {
@@ -479,8 +510,7 @@ func (v *verifier) verifyT2SplitBillAndZeroDrift() (string, error) {
 
 	// Apply SOFRA50 (5000 kr discount across 3 equal items -> 1667 + 1667 + 1666 = 5000 kr)
 	cmpBody, cmpSt, _, _ := v.doJSON(http.MethodPost, fmt.Sprintf("/api/v1/orders/%d/apply-campaigns", ord6.ID), v.tokens["cashier"], "", map[string]any{
-		"coupon_code":  "SOFRA50",
-		"current_hour": 15,
+		"coupon_code": "SOFRA50",
 	})
 	if cmpSt != http.StatusOK {
 		return "", fmt.Errorf("apply-campaigns failed: status=%d", cmpSt)
@@ -666,8 +696,7 @@ func (v *verifier) verifyT5CampaignOptimizer() (string, error) {
 	}
 
 	evalBody, evalSt, _, err := v.doJSON(http.MethodPost, fmt.Sprintf("/api/v1/orders/%d/apply-campaigns", ord8.ID), v.tokens["cashier"], "", map[string]any{
-		"coupon_code":  "SOFRA50",
-		"current_hour": 19,
+		"coupon_code": "SOFRA50",
 	})
 	if err != nil || evalSt != http.StatusOK {
 		return "", fmt.Errorf("apply-campaigns failed: status=%d", evalSt)
@@ -723,7 +752,7 @@ func (v *verifier) doJSON(method, path, token, idempKey string, payload any) ([]
 	return data, resp.StatusCode, resp.Header, nil
 }
 
-func (v *verifier) printSummaryAndExit() {
+func (v *verifier) printSummary() int {
 	fmt.Println("\n--------------------------------------------------------------------------------")
 	fmt.Printf(" %-10s | %-6s | %-8s | %s\n", "KİMLİK", "DURUM", "SÜRE", "AÇIKLAMA / KANIT ÖZETİ")
 	fmt.Println("--------------------------------------------------------------------------------")
@@ -746,8 +775,9 @@ func (v *verifier) printSummaryAndExit() {
 
 	if failed > 0 {
 		fmt.Printf(" SONUÇ: %d kontrol BAŞARISIZ oldu.\n", failed)
-		os.Exit(1)
+		return 1
 	}
 	fmt.Printf(" SONUÇ: Tüm %d doğrulama kimliği (F-1..F-7, T-1..T-5, HEALTH, AUTH-RBAC) PASS!\n", len(v.results))
 	fmt.Println("================================================================================")
+	return 0
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +11,10 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
+
+	"github.com/efehidir/ddo/backend/internal/demogate"
 )
 
 type simClient struct {
@@ -65,7 +69,10 @@ func main() {
 	}
 
 	// Initial burst across all 8 branches so the dashboard is immediately lively
-	sim.runInitialEveningRush()
+	if err := sim.withDemoGate(sim.runInitialEveningRush); err != nil {
+		slog.Error("initial workload failed", "error", err)
+		os.Exit(1)
+	}
 
 	if oneShot {
 		slog.Info("simulator one-shot burst completed")
@@ -77,9 +84,30 @@ func main() {
 
 	tickCount := 1
 	for range ticker.C {
-		sim.runPeriodicTick(tickCount)
+		if tickCount%300 == 0 {
+			if err := sim.authenticateAllRoles(); err != nil {
+				slog.Error("simulator token renewal failed", "error", err)
+				continue
+			}
+		}
+		if err := sim.withDemoGate(func() { sim.runPeriodicTick(tickCount) }); err != nil {
+			slog.Error("simulator workload gate failed", "error", err)
+			continue
+		}
 		tickCount++
 	}
+}
+
+func (s *simClient) withDemoGate(work func()) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 14*time.Minute)
+	defer cancel()
+	release, err := demogate.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	work()
+	return nil
 }
 
 func (s *simClient) waitForBackend() {
@@ -97,15 +125,8 @@ func (s *simClient) waitForBackend() {
 }
 
 func (s *simClient) authenticateAllRoles() error {
-	accounts := map[string]string{
-		"waiter":         "garson@sofrapos.local",
-		"cashier":        "kasiyer@sofrapos.local",
-		"chef":           "asci@sofrapos.local",
-		"branch_manager": "mudur@sofrapos.local",
-		"hq_manager":     "merkez@sofrapos.local",
-	}
-
-	for role, email := range accounts {
+	// This system workload spans eight branches; ordinary demo staff stay branch-bound.
+	for _, email := range []string{"merkez@sofrapos.local"} {
 		body, status, err := s.postJSON("/api/v1/auth/login", "", "", map[string]any{
 			"email":    email,
 			"password": "Sofra2026!",
@@ -117,72 +138,87 @@ func (s *simClient) authenticateAllRoles() error {
 			AccessToken string `json:"access_token"`
 		}
 		_ = json.Unmarshal(body, &res)
-		s.tokens[role] = res.AccessToken
+		if res.AccessToken == "" {
+			return fmt.Errorf("empty simulator access token")
+		}
+		for _, role := range []string{"waiter", "cashier", "chef", "branch_manager", "hq_manager"} {
+			s.tokens[role] = res.AccessToken
+		}
 	}
 	return nil
 }
 
 func (s *simClient) runInitialEveningRush() {
 	// Deterministically seed active orders, KDS tickets, cancellations and payments across 8 branches
+	var workers sync.WaitGroup
 	for branchID := int64(1); branchID <= 8; branchID++ {
-		tables := s.fetchBranchTables(branchID)
-		if len(tables) < 4 {
-			continue
-		}
+		workers.Add(1)
+		go func(branchID int64) {
+			defer workers.Done()
+			s.runBranchRush(branchID)
+		}(branchID)
+	}
+	workers.Wait()
+	slog.Info("initial concurrent 8-branch evening rush completed")
+}
 
-		// Open Table 1 and Table 2 in each branch
-		order1 := s.openOrder(branchID, tables[0])
-		if order1 > 0 {
-			// Add İskender (1.5 Porsiyon + Ekstra Tereyağı), Lahmacun x3, Ayran, Künefe
-			_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order1), s.tokens["waiter"], "", map[string]any{
-				"menu_item_id": 1,
-				"quantity":     1,
-				"variant_id":   2,
-				"modifier_ids": []int64{1},
-			})
-			_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order1), s.tokens["waiter"], "", map[string]any{
-				"menu_item_id": 2,
-				"quantity":     3,
-				"variant_id":   4,
-			})
-			_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order1), s.tokens["waiter"], "", map[string]any{
-				"menu_item_id": 4,
-				"quantity":     1,
-			})
-			_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order1), s.tokens["waiter"], "", map[string]any{
-				"menu_item_id": 5,
-				"quantity":     1,
-			})
+func (s *simClient) runBranchRush(branchID int64) {
+	tables := s.fetchBranchTables(branchID)
+	if len(tables) < 4 {
+		return
+	}
 
-			// Apply best campaigns + SOFRA50 coupon
-			_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/apply-campaigns", order1), s.tokens["cashier"], "", map[string]any{
-				"coupon_code": "SOFRA50",
-			})
+	// Open Table 1 and Table 2 in each branch
+	order1 := s.openOrder(branchID, tables[0])
+	if order1 > 0 {
+		// Add İskender (1.5 Porsiyon + Ekstra Tereyağı), Lahmacun x3, Ayran, Künefe
+		_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order1), s.tokens["waiter"], "", map[string]any{
+			"menu_item_id": 1,
+			"quantity":     1,
+			"variant_id":   2,
+			"modifier_ids": []int64{1},
+		})
+		_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order1), s.tokens["waiter"], "", map[string]any{
+			"menu_item_id": 2,
+			"quantity":     3,
+			"variant_id":   4,
+		})
+		_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order1), s.tokens["waiter"], "", map[string]any{
+			"menu_item_id": 4,
+			"quantity":     1,
+		})
+		_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order1), s.tokens["waiter"], "", map[string]any{
+			"menu_item_id": 5,
+			"quantity":     1,
+		})
 
-			// For even branches, complete payment so HQ report shows live revenue across branches
-			if branchID%2 == 0 {
-				_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/payments", order1), s.tokens["cashier"], fmt.Sprintf("sim-init-pay-b%d", branchID), map[string]any{
-					"method":     "CARD",
-					"split_mode": "FULL",
-					"tip_kurus":  int64(2500 + branchID*200),
-				})
-			}
-		}
+		// Apply best campaigns + SOFRA50 coupon
+		_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/apply-campaigns", order1), s.tokens["cashier"], "", map[string]any{
+			"coupon_code": "SOFRA50",
+		})
 
-		// Open second table for active KDS tickets
-		order2 := s.openOrder(branchID, tables[1])
-		if order2 > 0 {
-			_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order2), s.tokens["waiter"], "", map[string]any{
-				"menu_item_id": 3, // Atom Haydari (cold, course 1)
-				"quantity":     1,
-			})
-			_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order2), s.tokens["waiter"], "", map[string]any{
-				"menu_item_id": 1, // İskender (hot, course 2)
-				"quantity":     2,
+		// For even branches, complete payment so HQ report shows live revenue across branches
+		if branchID%2 == 0 {
+			_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/payments", order1), s.tokens["cashier"], fmt.Sprintf("sim-init-pay-b%d", branchID), map[string]any{
+				"method":     "CARD",
+				"split_mode": "FULL",
+				"tip_kurus":  int64(2500 + branchID*200),
 			})
 		}
 	}
-	slog.Info("initial 8-branch evening rush seeded deterministically")
+
+	// Open second table for active KDS tickets
+	order2 := s.openOrder(branchID, tables[1])
+	if order2 > 0 {
+		_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order2), s.tokens["waiter"], "", map[string]any{
+			"menu_item_id": 3, // Atom Haydari (cold, course 1)
+			"quantity":     1,
+		})
+		_, _, _ = s.postJSON(fmt.Sprintf("/api/v1/orders/%d/items", order2), s.tokens["waiter"], "", map[string]any{
+			"menu_item_id": 1, // İskender (hot, course 2)
+			"quantity":     2,
+		})
+	}
 }
 
 func (s *simClient) runPeriodicTick(tick int) {
@@ -272,6 +308,10 @@ func (s *simClient) fetchBranchTables(branchID int64) []int64 {
 		return nil
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		slog.Error("simulator table query rejected", "branch_id", branchID, "status", resp.StatusCode)
+		return nil
+	}
 	var data struct {
 		Tables []struct {
 			ID int64 `json:"id"`
@@ -319,6 +359,9 @@ func (s *simClient) postJSON(path, token, idempKey string, payload any) ([]byte,
 	}
 	defer func() { _ = resp.Body.Close() }()
 	data, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		slog.Warn("simulator operation rejected", "path", path, "status", resp.StatusCode)
+	}
 	return data, resp.StatusCode, nil
 }
 
@@ -338,5 +381,8 @@ func (s *simClient) patchJSON(path, token string, payload any) ([]byte, int, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	data, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		slog.Warn("simulator operation rejected", "path", path, "status", resp.StatusCode)
+	}
 	return data, resp.StatusCode, nil
 }
