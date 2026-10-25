@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"math/bits"
 	"sort"
 )
 
@@ -84,9 +85,9 @@ func AllocateDiscountAcrossItems(items []LineItemInput, totalDiscountKurus int64
 
 	for _, idx := range activeIndices {
 		sub := items[idx].LineSubtotalKurus
-		numerator := sub * totalDiscountKurus
-		baseDiscount := numerator / subtotal
-		rem := numerator % subtotal
+		hi, lo := bits.Mul64(uint64(sub), uint64(totalDiscountKurus))
+		q, r := bits.Div64(hi, lo, uint64(subtotal))
+		baseDiscount, rem := int64(q), int64(r)
 
 		result[idx].AllocatedDiscountKurus = baseDiscount
 		allocatedSum += baseDiscount

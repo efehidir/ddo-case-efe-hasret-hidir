@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -9,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/valyala/fasthttp"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/efehidir/ddo/backend/internal/auth"
 	"github.com/efehidir/ddo/backend/internal/domain"
@@ -120,6 +119,13 @@ func (s *POSService) handleUpdateKDSItemStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusNotFound, "ITEM_NOT_FOUND", "Mutfak kalemi bulunamadı.")
 	}
+	if oldStatus == req.Status {
+		return c.JSON(fiber.Map{"order_item_id": itemID, "kds_status": oldStatus})
+	}
+	nextStatus := map[string]string{"PENDING": "PREPARING", "PREPARING": "READY", "READY": "SERVED"}
+	if nextStatus[oldStatus] != req.Status {
+		return auth.RespondError(c, 409, "INVALID_TRANSITION", "Mutfak kalemi sırayla hazırlanıyor, hazır ve servis edildi durumlarına geçmelidir.")
+	}
 
 	_, err = tx.Exec(ctx, `
 		UPDATE "dz-order-items"
@@ -224,99 +230,8 @@ func (s *POSService) handleReplayKDSEvents(c *fiber.Ctx) error {
 		"last_event_id":  latestID,
 		"replayed_count": len(events),
 		"events":         events,
+		"has_more":       len(events) == 200,
 	})
-}
-
-func (s *POSService) handleKDSStreamSSE(c *fiber.Ctx) error {
-	if !s.requirePool(c) {
-		return nil
-	}
-	claims, _ := auth.GetClaims(c)
-	branchID := s.resolveBranchID(c, claims)
-	station := strings.ToLower(strings.TrimSpace(c.Query("station", "all")))
-
-	sinceID, _ := strconv.ParseInt(c.Query("since_event_id", "0"), 10, 64)
-	if lastHeader := c.Get("Last-Event-ID"); lastHeader != "" && sinceID == 0 {
-		sinceID, _ = strconv.ParseInt(lastHeader, 10, 64)
-	}
-
-	// Pre-fetch missed events from PostgreSQL "dz-order-events" before streaming
-	var initialReplay []domain.KDSStreamEvent
-	rows, err := s.queries(c.UserContext()).Query(c.UserContext(), `
-		SELECT id, branch_id, order_id, event_type, created_at
-		FROM "dz-order-events"
-		WHERE branch_id = $1 AND id > $2
-		ORDER BY id ASC
-		LIMIT 100
-	`, branchID, sinceID)
-	if err == nil {
-		for rows.Next() {
-			var ev domain.KDSStreamEvent
-			if scanErr := rows.Scan(&ev.EventID, &ev.BranchID, &ev.OrderID, &ev.EventType, &ev.CreatedAt); scanErr == nil {
-				ev.Station = station
-				ev.Summary = "Replayed event from dz-order-events"
-				initialReplay = append(initialReplay, ev)
-			}
-		}
-		rows.Close()
-	}
-
-	// If client requested a short burst (e.g. ?once=1 for automated test / curl verification), send replay & close cleanly
-	if c.Query("once") == "1" {
-		c.Set("Content-Type", "text/event-stream")
-		c.Set("Cache-Control", "no-cache")
-		var sb strings.Builder
-		for _, ev := range initialReplay {
-			b, _ := json.Marshal(ev)
-			sb.WriteString(fmt.Sprintf("id: %d\nevent: kds_event\ndata: %s\n\n", ev.EventID, string(b)))
-		}
-		return c.Status(fiber.StatusOK).SendString(sb.String())
-	}
-
-	c.Set("Content-Type", "text/event-stream")
-	c.Set("Cache-Control", "no-cache")
-	c.Set("Connection", "keep-alive")
-
-	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
-		for _, ev := range initialReplay {
-			b, _ := json.Marshal(ev)
-			_, _ = fmt.Fprintf(w, "id: %d\nevent: kds_event\ndata: %s\n\n", ev.EventID, string(b))
-		}
-		_ = w.Flush()
-
-		ch, unsub := s.broker.Subscribe()
-		defer unsub()
-
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case ev, ok := <-ch:
-				if !ok {
-					return
-				}
-				if ev.BranchID == branchID && (station == "all" || ev.Station == "" || ev.Station == station) {
-					b, _ := json.Marshal(ev)
-					if _, err := fmt.Fprintf(w, "id: %d\nevent: kds_event\ndata: %s\n\n", ev.EventID, string(b)); err != nil {
-						return
-					}
-					if err := w.Flush(); err != nil {
-						return
-					}
-				}
-			case t := <-ticker.C:
-				if _, err := fmt.Fprintf(w, ": heartbeat %d\n\n", t.Unix()); err != nil {
-					return
-				}
-				if err := w.Flush(); err != nil {
-					return
-				}
-			}
-		}
-	}))
-
-	return nil
 }
 
 func (s *POSService) handleGetInventory(c *fiber.Ctx) error {
@@ -558,8 +473,12 @@ func (s *POSService) handleOpenShift(c *fiber.Ctx) error {
 	if req.BranchID <= 0 {
 		req.BranchID = s.resolveBranchID(c, claims)
 	}
-	if req.OpeningCashKurus <= 0 {
-		req.OpeningCashKurus = 500000
+	if req.OpeningCashKurus < 0 {
+		return auth.RespondError(c, 400, "INVALID_AMOUNT", "Açılış kasası negatif olamaz.")
+	}
+	var existing int64
+	if err := s.queries(ctx).QueryRow(ctx, `SELECT id FROM "dz-shifts" WHERE branch_id=$1 AND status='OPEN'`, req.BranchID).Scan(&existing); err == nil {
+		return auth.RespondError(c, 409, "SHIFT_ALREADY_OPEN", "Bu şubede zaten açık vardiya var.")
 	}
 
 	var shiftID int64
@@ -572,6 +491,11 @@ func (s *POSService) handleOpenShift(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "DB_ERROR", err.Error())
 	}
 
+	if tx, ok := ctx.Value(requestTxKey{}).(pgx.Tx); ok {
+		if err := s.writeAuditTx(ctx, tx, req.BranchID, claims.UserID, claims.Role, "SHIFT_OPENED", "shift", fmt.Sprint(shiftID), nil, req); err != nil {
+			return err
+		}
+	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"shift_id":           shiftID,
 		"branch_id":          req.BranchID,
@@ -588,8 +512,8 @@ func (s *POSService) handleCloseShift(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	var req struct {
-		BranchID         int64 `json:"branch_id"`
-		ClosingCashKurus int64 `json:"closing_cash_kurus"`
+		BranchID         int64  `json:"branch_id"`
+		ClosingCashKurus *int64 `json:"closing_cash_kurus"`
 	}
 	_ = c.BodyParser(&req)
 	if req.BranchID <= 0 {
@@ -606,101 +530,42 @@ func (s *POSService) handleCloseShift(c *fiber.Ctx) error {
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusNotFound, "SHIFT_NOT_FOUND", "Açık vardiya bulunamadı.")
 	}
+	var cashTips int64
+	if err := s.queries(ctx).QueryRow(ctx, `SELECT COALESCE(SUM(tip_kurus),0) FROM "dz-payments" WHERE shift_id=$1 AND method='CASH'`, shiftID).Scan(&cashTips); err != nil {
+		return err
+	}
+	cashPay += cashTips
 
-	if req.ClosingCashKurus <= 0 {
-		req.ClosingCashKurus = openCash + cashPay
+	closingCash := openCash + cashPay
+	if req.ClosingCashKurus != nil {
+		closingCash = *req.ClosingCashKurus
+	}
+	if closingCash < 0 {
+		return auth.RespondError(c, 400, "INVALID_AMOUNT", "Kapanış kasası negatif olamaz.")
 	}
 
 	_, err = s.queries(ctx).Exec(ctx, `
 		UPDATE "dz-shifts"
 		SET status = 'CLOSED', closed_by = $1, closing_cash_kurus = $2, closed_at = NOW()
 		WHERE id = $3
-	`, claims.UserID, req.ClosingCashKurus, shiftID)
+	`, claims.UserID, closingCash, shiftID)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "DB_ERROR", err.Error())
 	}
 
-	// Open a fresh shift automatically so continuous operations work smoothly
-	_, _ = s.queries(ctx).Exec(ctx, `
-		INSERT INTO "dz-shifts" (branch_id, opened_by, status, opening_cash_kurus)
-		VALUES ($1, $2, 'OPEN', $3)
-	`, req.BranchID, claims.UserID, req.ClosingCashKurus)
-
-	return c.JSON(fiber.Map{
-		"closed_shift_id":    shiftID,
-		"branch_id":          req.BranchID,
-		"closing_cash_kurus": req.ClosingCashKurus,
-		"status":             "CLOSED",
-	})
-}
-
-func (s *POSService) handleGetZReport(c *fiber.Ctx) error {
-	if !s.requirePool(c) {
-		return nil
-	}
-	claims, _ := auth.GetClaims(c)
-	branchID := s.resolveBranchID(c, claims)
-	ctx := c.UserContext()
-
-	payRows, err := s.queries(ctx).Query(ctx, `
-		SELECT id, order_id, method, split_mode, amount_kurus, tip_kurus
-		FROM "dz-payments"
-		WHERE branch_id = $1
-		ORDER BY id ASC
-	`, branchID)
-	if err != nil {
-		return auth.RespondError(c, fiber.StatusInternalServerError, "DB_ERROR", err.Error())
-	}
-	defer payRows.Close()
-
-	var payments []domain.PaymentRecord
-	for payRows.Next() {
-		var p domain.PaymentRecord
-		if err := payRows.Scan(&p.ID, &p.OrderID, &p.Method, &p.SplitMode, &p.AmountKurus, &p.TipKurus); err == nil {
-			payments = append(payments, p)
+	if tx, ok := ctx.Value(requestTxKey{}).(pgx.Tx); ok {
+		if err := s.writeAuditTx(ctx, tx, req.BranchID, claims.UserID, claims.Role, "SHIFT_CLOSED", "shift", fmt.Sprint(shiftID), fiber.Map{"status": "OPEN"}, fiber.Map{"status": "CLOSED", "closing_cash_kurus": closingCash}); err != nil {
+			return err
 		}
 	}
 
-	var totalPaidAcrossOrders, totalDiscountKurus int64
-	_ = s.queries(ctx).QueryRow(ctx, `
-		SELECT COALESCE(SUM(paid_kurus), 0), COALESCE(SUM(discount_kurus), 0)
-		FROM "dz-orders"
-		WHERE branch_id = $1
-	`, branchID).Scan(&totalPaidAcrossOrders, &totalDiscountKurus)
-
-	var totalWasteKurus int64
-	_ = s.queries(ctx).QueryRow(ctx, `
-		SELECT COALESCE(SUM(cost_kurus), 0)
-		FROM "dz-stock-movements"
-		WHERE branch_id = $1 AND movement_type = 'WASTE'
-	`, branchID).Scan(&totalWasteKurus)
-
-	zSummary := domain.ReconcileZReport(payments, totalPaidAcrossOrders)
-
-	var shiftID, openingCash int64
-	var shiftStatus string
-	_ = s.queries(ctx).QueryRow(ctx, `
-		SELECT id, status, opening_cash_kurus
-		FROM "dz-shifts"
-		WHERE branch_id = $1
-		ORDER BY id DESC LIMIT 1
-	`, branchID).Scan(&shiftID, &shiftStatus, &openingCash)
-
 	return c.JSON(fiber.Map{
-		"branch_id":             branchID,
-		"shift_id":              shiftID,
-		"shift_status":          shiftStatus,
-		"opening_cash_kurus":    openingCash,
-		"cash_payments_kurus":   zSummary.CashPaymentsKurus,
-		"card_payments_kurus":   zSummary.CardPaymentsKurus,
-		"total_payments_kurus":  zSummary.TotalPaymentsKurus,
-		"total_tips_kurus":      zSummary.TotalTipsKurus,
-		"total_discount_kurus":  totalDiscountKurus,
-		"total_waste_kurus":     totalWasteKurus,
-		"grand_total_kurus":     zSummary.GrandTotalKurus,
-		"payment_count":         zSummary.PaymentCount,
-		"orders_paid_sum_kurus": totalPaidAcrossOrders,
-		"is_balanced":           zSummary.IsBalanced,
+		"closed_shift_id":     shiftID,
+		"branch_id":           req.BranchID,
+		"closing_cash_kurus":  closingCash,
+		"expected_cash_kurus": openCash + cashPay,
+		"cash_variance_kurus": closingCash - openCash - cashPay,
+		"status":              "CLOSED",
 	})
 }
 

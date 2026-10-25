@@ -69,6 +69,7 @@ func EvaluateBestCampaigns(
 	var subtotal int64
 	itemQtyByCode := make(map[string]int)
 	unitPriceByCode := make(map[string]int64)
+	priceTiers := make(map[string][]BasketItem)
 
 	for _, it := range items {
 		if it.Quantity <= 0 {
@@ -76,6 +77,7 @@ func EvaluateBestCampaigns(
 		}
 		subtotal += it.LineSubtotalKurus
 		itemQtyByCode[it.MenuItemCode] += it.Quantity
+		priceTiers[it.MenuItemCode] = append(priceTiers[it.MenuItemCode], it)
 		if unitPriceByCode[it.MenuItemCode] == 0 || it.UnitPriceKurus < unitPriceByCode[it.MenuItemCode] {
 			unitPriceByCode[it.MenuItemCode] = it.UnitPriceKurus
 		}
@@ -89,6 +91,9 @@ func EvaluateBestCampaigns(
 	sortedCampaigns := make([]CampaignRule, len(campaigns))
 	copy(sortedCampaigns, campaigns)
 	sort.SliceStable(sortedCampaigns, func(i, j int) bool {
+		if sortedCampaigns[i].Priority == sortedCampaigns[j].Priority {
+			return sortedCampaigns[i].Code < sortedCampaigns[j].Code
+		}
 		return sortedCampaigns[i].Priority > sortedCampaigns[j].Priority
 	})
 
@@ -125,10 +130,21 @@ func EvaluateBestCampaigns(
 			_ = json.Unmarshal(c.ConfigJSON, &cfg)
 			qty := itemQtyByCode[cfg.ItemCode]
 			freePerGroup := cfg.BuyQty - cfg.PayQty
-			if cfg.BuyQty > 0 && freePerGroup > 0 && qty >= cfg.BuyQty {
+			if cfg.BuyQty > 0 && cfg.PayQty >= 0 && freePerGroup > 0 && qty >= cfg.BuyQty {
 				groups := qty / cfg.BuyQty
 				freeCount := groups * freePerGroup
-				disc := int64(freeCount) * unitPriceByCode[cfg.ItemCode]
+				tiers := append([]BasketItem(nil), priceTiers[cfg.ItemCode]...)
+				sort.SliceStable(tiers, func(i, j int) bool { return tiers[i].UnitPriceKurus < tiers[j].UnitPriceKurus })
+				var disc int64
+				left := freeCount
+				for _, tier := range tiers {
+					n := min(left, tier.Quantity)
+					disc += int64(n) * tier.UnitPriceKurus
+					left -= n
+					if left == 0 {
+						break
+					}
+				}
 				cand.eligible = true
 				cand.discount = disc
 				cand.reason = fmt.Sprintf("%s ürününden %d adet alındı; '%d Al %d Öde' kuralı ile %d adet (%s TL) bedava uygulandı.",
@@ -169,8 +185,11 @@ func EvaluateBestCampaigns(
 				EndHour     int   `json:"end_hour"`
 			}
 			_ = json.Unmarshal(c.ConfigJSON, &cfg)
-			inWindow := currentHour >= cfg.StartHour && currentHour <= cfg.EndHour
-			if inWindow && cfg.DiscountPct > 0 {
+			inWindow := currentHour >= cfg.StartHour && currentHour < cfg.EndHour
+			if cfg.StartHour > cfg.EndHour {
+				inWindow = currentHour >= cfg.StartHour || currentHour < cfg.EndHour
+			}
+			if inWindow && cfg.DiscountPct > 0 && cfg.DiscountPct <= 100 {
 				disc := (subtotal * cfg.DiscountPct) / 100
 				cand.eligible = true
 				cand.discount = disc
@@ -254,6 +273,7 @@ func EvaluateBestCampaigns(
 	}
 
 	var applied []CampaignDecision
+	remainingDiscount := winningDiscount
 	all := make([]CampaignDecision, 0, len(candidates))
 
 	for _, cand := range candidates {
@@ -268,10 +288,13 @@ func EvaluateBestCampaigns(
 			dec.Applied = false
 		} else if useStackable && cand.stackable {
 			dec.Applied = true
+			dec.DiscountKurus = min(cand.discount, remainingDiscount)
+			remainingDiscount -= dec.DiscountKurus
 			dec.Reason = cand.reason + fmt.Sprintf(" [Birleştirilebilir paket toplamı (%s TL) en avantajlı seçenek olduğu için uygulandı]", formatKurus(winningDiscount))
 			applied = append(applied, dec)
 		} else if !useStackable && cand.code == bestExclusiveCode {
 			dec.Applied = true
+			dec.DiscountKurus = winningDiscount
 			dec.Reason = cand.reason + fmt.Sprintf(" [Tekil kampanya (%s TL), birleştirilebilir paketten (%s TL) daha avantajlı olduğu için seçildi]", formatKurus(winningDiscount), formatKurus(stackableTotal))
 			applied = append(applied, dec)
 		} else {
