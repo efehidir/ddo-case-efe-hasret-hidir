@@ -14,6 +14,9 @@ var migration001UpSQL string
 //go:embed migrations/001_sofrapos_schema.down.sql
 var migration001DownSQL string
 
+//go:embed migrations/002_integrity.up.sql
+var migration002UpSQL string
+
 // DefaultDemoPassword is the password for all seeded demo accounts.
 const DefaultDemoPassword = "Sofra2026!"
 
@@ -30,6 +33,13 @@ func (p *Postgres) MigrateAndSeed(ctx context.Context) error {
 	`)
 	if err != nil {
 		return fmt.Errorf("record migration version: %w", err)
+	}
+
+	if _, err := p.pool.Exec(ctx, migration002UpSQL); err != nil {
+		return fmt.Errorf("apply migration 002: %w", err)
+	}
+	if _, err := p.pool.Exec(ctx, `INSERT INTO "dz-schema-migrations" (version) VALUES ('002_integrity') ON CONFLICT DO NOTHING`); err != nil {
+		return err
 	}
 
 	var userCount int

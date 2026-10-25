@@ -156,6 +156,8 @@ func TestDatabaseCheckEndpoint(t *testing.T) {
 	app := server.New(cfg, &mockProbe{fail: false})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/db/check", nil)
+	pair, _ := auth.GenerateTokenPair(cfg.JWTSecret, 1, 1, "hq@test.invalid", "HQ", auth.RoleHQManager)
+	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
 	resp, err := app.Test(req, -1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

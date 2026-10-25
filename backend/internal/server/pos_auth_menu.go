@@ -53,7 +53,7 @@ func (s *POSService) handleLogin(c *fiber.Ctx) error {
 		isActive bool
 	)
 
-	err := s.pool.QueryRow(c.UserContext(), `
+	err := s.queries(c.UserContext()).QueryRow(c.UserContext(), `
 		SELECT id, branch_id, email, password_hash, full_name, role, is_active
 		FROM "dz-sk-users"
 		WHERE LOWER(email) = $1
@@ -94,6 +94,12 @@ func (s *POSService) handleRefresh(c *fiber.Ctx) error {
 	if err != nil || claims.TokenType != "refresh" {
 		return auth.RespondError(c, fiber.StatusUnauthorized, "INVALID_REFRESH_TOKEN", "Geçersiz veya süresi dolmuş yenileme anahtarı.")
 	}
+	if !s.requirePool(c) {
+		return nil
+	}
+	if err := s.pool.QueryRow(c.UserContext(), `SELECT branch_id, email, full_name, role FROM "dz-sk-users" WHERE id=$1 AND is_active=TRUE`, claims.UserID).Scan(&claims.BranchID, &claims.Email, &claims.FullName, &claims.Role); err != nil {
+		return auth.RespondError(c, fiber.StatusUnauthorized, "INVALID_REFRESH_TOKEN", "Kullanıcı hesabı aktif değil.")
+	}
 
 	tokens, err := auth.GenerateTokenPair(s.cfg.JWTSecret, claims.UserID, claims.BranchID, claims.Email, claims.FullName, claims.Role)
 	if err != nil {
@@ -121,7 +127,7 @@ func (s *POSService) handleListBranches(c *fiber.Ctx) error {
 		return nil
 	}
 
-	rows, err := s.pool.Query(c.UserContext(), `
+	rows, err := s.queries(c.UserContext()).Query(c.UserContext(), `
 		SELECT id, code, name, city, is_active
 		FROM "dz-branches"
 		ORDER BY id ASC
@@ -156,7 +162,7 @@ func (s *POSService) handleGetMenu(c *fiber.Ctx) error {
 	}
 	ctx := c.UserContext()
 
-	catRows, err := s.pool.Query(ctx, `SELECT id, name, sort_order FROM "dz-menu-categories" ORDER BY sort_order ASC, id ASC`)
+	catRows, err := s.queries(ctx).Query(ctx, `SELECT id, name, sort_order FROM "dz-menu-categories" ORDER BY sort_order ASC, id ASC`)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "DB_ERROR", err.Error())
 	}
@@ -177,7 +183,7 @@ func (s *POSService) handleGetMenu(c *fiber.Ctx) error {
 
 	// Variants map
 	variantMap := make(map[int64][]fiber.Map)
-	vRows, err := s.pool.Query(ctx, `
+	vRows, err := s.queries(ctx).Query(ctx, `
 		SELECT id, menu_item_id, name, price_delta_kurus, recipe_multiplier_pct
 		FROM "dz-menu-variants"
 		ORDER BY id ASC
@@ -201,7 +207,7 @@ func (s *POSService) handleGetMenu(c *fiber.Ctx) error {
 
 	// Modifiers map
 	modifierMap := make(map[int64][]fiber.Map)
-	mRows, err := s.pool.Query(ctx, `
+	mRows, err := s.queries(ctx).Query(ctx, `
 		SELECT id, menu_item_id, name, price_delta_kurus, ingredient_code, extra_qty_grams
 		FROM "dz-menu-modifiers"
 		ORDER BY id ASC
@@ -224,7 +230,7 @@ func (s *POSService) handleGetMenu(c *fiber.Ctx) error {
 	}
 
 	// Items
-	itemRows, err := s.pool.Query(ctx, `
+	itemRows, err := s.queries(ctx).Query(ctx, `
 		SELECT id, category_id, code, name, description, base_price_kurus, station, course, prep_time_sec, is_available
 		FROM "dz-menu-items"
 		ORDER BY id ASC
@@ -312,7 +318,7 @@ func (s *POSService) handleCreateMenuItem(c *fiber.Ctx) error {
 		req.PrepTimeSec = 240
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}

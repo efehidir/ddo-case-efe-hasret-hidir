@@ -1,6 +1,9 @@
 package server
 
 import (
+	"context"
+	"errors"
+	"log/slog"
 	"math"
 	"time"
 
@@ -8,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
+	"github.com/efehidir/ddo/backend/internal/auth"
 	"github.com/efehidir/ddo/backend/internal/config"
 	"github.com/efehidir/ddo/backend/internal/database"
 	"github.com/efehidir/ddo/backend/internal/metrics"
@@ -36,6 +40,17 @@ func New(cfg config.Config, db database.Probe) *fiber.App {
 		ReadTimeout:           15 * time.Second,
 		WriteTimeout:          30 * time.Second,
 		IdleTimeout:           60 * time.Second,
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			status, code, message := 500, "INTERNAL_ERROR", "İşlem tamamlanamadı. Lütfen tekrar deneyin."
+			var httpErr *fiber.Error
+			if errors.As(err, &httpErr) {
+				status, code, message = httpErr.Code, "HTTP_ERROR", httpErr.Message
+			} else if errors.Is(err, context.DeadlineExceeded) {
+				status, code, message = 504, "TIMEOUT", "İşlem zaman aşımına uğradı."
+			}
+			slog.Error("request failed", "method", c.Method(), "path", c.Path(), "status", status, "error", err)
+			return auth.RespondError(c, status, code, message)
+		},
 	})
 
 	app.Use(recover.New())
@@ -53,6 +68,12 @@ func New(cfg config.Config, db database.Probe) *fiber.App {
 		ExposeHeaders: "X-DDO-Case,X-Idempotent-Replay",
 	}))
 	app.Use(collector.Middleware())
+	app.Use(func(c *fiber.Ctx) error {
+		ctx, cancel := context.WithTimeout(c.UserContext(), 15*time.Second)
+		defer cancel()
+		c.SetUserContext(ctx)
+		return c.Next()
+	})
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -104,7 +125,7 @@ func New(cfg config.Config, db database.Probe) *fiber.App {
 		})
 	})
 
-	app.Get("/api/v1/db/check", func(c *fiber.Ctx) error {
+	app.Get("/api/v1/db/check", auth.RequireAuth(cfg.JWTSecret), auth.RequireRoles(auth.RoleHQManager), func(c *fiber.Ctx) error {
 		diag, err := db.Diagnostics(c.UserContext())
 		collector.RecordDBHealth(err == nil, diag.LatencyMs)
 

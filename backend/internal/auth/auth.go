@@ -157,6 +157,17 @@ func VerifyJWT(secret, token string) (Claims, error) {
 	if len(parts) != 3 {
 		return Claims{}, errors.New("malformed token")
 	}
+	headerBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return Claims{}, errors.New("invalid token header")
+	}
+	var header struct {
+		Alg string `json:"alg"`
+		Typ string `json:"typ"`
+	}
+	if json.Unmarshal(headerBytes, &header) != nil || header.Alg != "HS256" || header.Typ != "JWT" {
+		return Claims{}, errors.New("unsupported token header")
+	}
 
 	signingInput := parts[0] + "." + parts[1]
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -177,7 +188,7 @@ func VerifyJWT(secret, token string) (Claims, error) {
 		return Claims{}, fmt.Errorf("unmarshal claims: %w", err)
 	}
 
-	if time.Now().UTC().Unix() > claims.ExpiresAt {
+	if time.Now().UTC().Unix() >= claims.ExpiresAt || claims.UserID <= 0 || claims.BranchID <= 0 {
 		return Claims{}, errors.New("token expired")
 	}
 
@@ -194,7 +205,7 @@ func RequireAuth(secret string) fiber.Handler {
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			rawToken = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 		}
-		if rawToken == "" {
+		if rawToken == "" && c.Path() == "/api/v1/kds/stream" {
 			rawToken = strings.TrimSpace(c.Query("token"))
 		}
 		if rawToken == "" {

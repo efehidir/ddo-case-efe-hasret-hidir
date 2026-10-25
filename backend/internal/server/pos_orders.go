@@ -35,7 +35,7 @@ func (s *POSService) handleListTables(c *fiber.Ctx) error {
 	claims, _ := auth.GetClaims(c)
 	branchID := s.resolveBranchID(c, claims)
 
-	rows, err := s.pool.Query(c.UserContext(), `
+	rows, err := s.queries(c.UserContext()).Query(c.UserContext(), `
 		SELECT
 			t.id, t.branch_id, t.code, t.name, t.capacity, t.status,
 			COALESCE(t.active_order_id, 0), COALESCE(t.merged_into_table_id, 0), t.version,
@@ -101,7 +101,7 @@ func (s *POSService) handleListOrders(c *fiber.Ctx) error {
 		ORDER BY o.id DESC
 		LIMIT $3
 	`
-	rows, err := s.pool.Query(c.UserContext(), query, branchID, afterID, limit)
+	rows, err := s.queries(c.UserContext()).Query(c.UserContext(), query, branchID, afterID, limit)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "DB_ERROR", err.Error())
 	}
@@ -166,7 +166,7 @@ func (s *POSService) handleCreateOrder(c *fiber.Ctx) error {
 		}
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}
@@ -239,7 +239,7 @@ func (s *POSService) loadOrderDetail(ctx context.Context, orderID int64) (fiber.
 		createdAt, updatedAt                                      time.Time
 	)
 
-	err := s.pool.QueryRow(ctx, `
+	err := s.queries(ctx).QueryRow(ctx, `
 		SELECT o.id, o.branch_id, o.table_id, t.code, o.status, o.version,
 		       o.subtotal_kurus, o.discount_kurus, o.total_kurus, o.paid_kurus, o.tip_kurus,
 		       o.coupon_code, o.campaign_explanation, o.created_at, o.updated_at
@@ -261,7 +261,7 @@ func (s *POSService) loadOrderDetail(ctx context.Context, orderID int64) (fiber.
 		campaignDecisions = []domain.CampaignDecision{}
 	}
 
-	itemRows, err := s.pool.Query(ctx, `
+	itemRows, err := s.queries(ctx).Query(ctx, `
 		SELECT id, menu_item_id, item_name, COALESCE(variant_id, 0), variant_name, modifier_names,
 		       quantity, unit_price_kurus, line_subtotal_kurus, allocated_discount_kurus,
 		       net_total_kurus, paid_kurus, station, course, prep_time_sec, kds_status,
@@ -316,7 +316,7 @@ func (s *POSService) loadOrderDetail(ctx context.Context, orderID int64) (fiber.
 		items = []fiber.Map{}
 	}
 
-	payRows, err := s.pool.Query(ctx, `
+	payRows, err := s.queries(ctx).Query(ctx, `
 		SELECT id, method, split_mode, amount_kurus, tip_kurus, idempotency_key, created_at
 		FROM "dz-payments"
 		WHERE order_id = $1
@@ -396,7 +396,7 @@ func (s *POSService) handleRebuildOrderFromEvents(c *fiber.Ctx) error {
 
 	var dbSub, dbDisc, dbTot, dbPaid, dbTip, dbVer int64
 	var dbStatus string
-	err = s.pool.QueryRow(ctx, `
+	err = s.queries(ctx).QueryRow(ctx, `
 		SELECT subtotal_kurus, discount_kurus, total_kurus, paid_kurus, tip_kurus, version, status
 		FROM "dz-orders"
 		WHERE id = $1
@@ -405,7 +405,7 @@ func (s *POSService) handleRebuildOrderFromEvents(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusNotFound, "ORDER_NOT_FOUND", "Adisyon bulunamadı.")
 	}
 
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.queries(ctx).Query(ctx, `
 		SELECT id, branch_id, order_id, event_type, COALESCE(actor_id, 0), payload, created_at
 		FROM "dz-order-events"
 		WHERE order_id = $1
@@ -438,9 +438,9 @@ func (s *POSService) handleRebuildOrderFromEvents(c *fiber.Ctx) error {
 		(rebuilt.TipKurus == dbTip)
 
 	return c.JSON(fiber.Map{
-		"order_id":         orderID,
-		"version":          dbVer,
-		"is_consistent":    isConsistent,
+		"order_id":      orderID,
+		"version":       dbVer,
+		"is_consistent": isConsistent,
 		"materialized": fiber.Map{
 			"subtotal_kurus": dbSub,
 			"discount_kurus": dbDisc,
@@ -620,7 +620,7 @@ func (s *POSService) handleAddOrderItem(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "menu_item_id ve pozitif quantity zorunludur.")
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}
@@ -790,7 +790,7 @@ func (s *POSService) handleCancelOrderItem(c *fiber.Ctx) error {
 		req.Reason = "Garson/Müdür iptali"
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}
@@ -909,7 +909,7 @@ func (s *POSService) handleMoveOrderTable(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "target_table_id zorunludur.")
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}
@@ -986,7 +986,7 @@ func (s *POSService) handleMergeOrders(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "Farklı ve geçerli source_order_id ile target_order_id zorunludur.")
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}
@@ -1080,7 +1080,7 @@ func (s *POSService) handleListCampaigns(c *fiber.Ctx) error {
 	}
 	ctx := c.UserContext()
 
-	cRows, err := s.pool.Query(ctx, `
+	cRows, err := s.queries(ctx).Query(ctx, `
 		SELECT id, code, name, rule_type, priority, stackable, config_json, is_active
 		FROM "dz-campaigns"
 		ORDER BY priority DESC, id ASC
@@ -1113,7 +1113,7 @@ func (s *POSService) handleListCampaigns(c *fiber.Ctx) error {
 		}
 	}
 
-	cpRows, err := s.pool.Query(ctx, `
+	cpRows, err := s.queries(ctx).Query(ctx, `
 		SELECT id, code, description, discount_type, discount_value, min_order_kurus, max_discount_kurus, stackable, is_active
 		FROM "dz-coupons"
 		ORDER BY id ASC
@@ -1171,7 +1171,7 @@ func (s *POSService) handleApplyCampaigns(c *fiber.Ctx) error {
 		hour = *req.CurrentHour
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}
@@ -1293,7 +1293,7 @@ func (s *POSService) handleSplitPreview(c *fiber.Ctx) error {
 	}
 
 	var total, paid int64
-	if err := s.pool.QueryRow(ctx, `SELECT total_kurus, paid_kurus FROM "dz-orders" WHERE id = $1`, orderID).Scan(&total, &paid); err != nil {
+	if err := s.queries(ctx).QueryRow(ctx, `SELECT total_kurus, paid_kurus FROM "dz-orders" WHERE id = $1`, orderID).Scan(&total, &paid); err != nil {
 		return auth.RespondError(c, fiber.StatusNotFound, "ORDER_NOT_FOUND", "Adisyon bulunamadı.")
 	}
 	remaining := max64(0, total-paid)
@@ -1312,7 +1312,7 @@ func (s *POSService) handleSplitPreview(c *fiber.Ctx) error {
 		})
 
 	case "BY_ITEM":
-		rows, err := s.pool.Query(ctx, `
+		rows, err := s.queries(ctx).Query(ctx, `
 			SELECT id, item_name, quantity, unit_price_kurus, line_subtotal_kurus,
 			       allocated_discount_kurus, net_total_kurus, paid_kurus
 			FROM "dz-order-items"
@@ -1335,10 +1335,10 @@ func (s *POSService) handleSplitPreview(c *fiber.Ctx) error {
 			return auth.RespondError(c, fiber.StatusBadRequest, "SPLIT_ERROR", err.Error())
 		}
 		return c.JSON(fiber.Map{
-			"split_mode":          "BY_ITEM",
-			"selected_item_ids":   req.SelectedItemIDs,
-			"selected_due_kurus":  due,
-			"order_remaining":     remaining,
+			"split_mode":         "BY_ITEM",
+			"selected_item_ids":  req.SelectedItemIDs,
+			"selected_due_kurus": due,
+			"order_remaining":    remaining,
 		})
 
 	default:
@@ -1389,7 +1389,7 @@ func (s *POSService) handleCreatePayment(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "Bahşiş negatif olamaz.")
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}

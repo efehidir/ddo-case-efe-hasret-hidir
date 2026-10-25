@@ -37,7 +37,7 @@ func (s *POSService) handleListKDSItems(c *fiber.Ctx) error {
 		ORDER BY i.created_at ASC
 	`
 
-	rows, err := s.pool.Query(c.UserContext(), query, branchID, station)
+	rows, err := s.queries(c.UserContext()).Query(c.UserContext(), query, branchID, station)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "DB_ERROR", err.Error())
 	}
@@ -59,7 +59,7 @@ func (s *POSService) handleListKDSItems(c *fiber.Ctx) error {
 	enriched := domain.EnrichAndSortKDSItems(rawItems, time.Now().UTC())
 
 	var lastEventID int64
-	_ = s.pool.QueryRow(c.UserContext(), `
+	_ = s.queries(c.UserContext()).QueryRow(c.UserContext(), `
 		SELECT COALESCE(MAX(id), 0) FROM "dz-order-events" WHERE branch_id = $1
 	`, branchID).Scan(&lastEventID)
 
@@ -102,7 +102,7 @@ func (s *POSService) handleUpdateKDSItemStatus(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusBadRequest, "INVALID_STATUS", "KDS durumu PREPARING, READY veya SERVED olmalıdır.")
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}
@@ -181,7 +181,7 @@ func (s *POSService) handleReplayKDSEvents(c *fiber.Ctx) error {
 		sinceID, _ = strconv.ParseInt(lastHeader, 10, 64)
 	}
 
-	rows, err := s.pool.Query(c.UserContext(), `
+	rows, err := s.queries(c.UserContext()).Query(c.UserContext(), `
 		SELECT id, branch_id, order_id, event_type, payload, created_at
 		FROM "dz-order-events"
 		WHERE branch_id = $1 AND id > $2
@@ -242,7 +242,7 @@ func (s *POSService) handleKDSStreamSSE(c *fiber.Ctx) error {
 
 	// Pre-fetch missed events from PostgreSQL "dz-order-events" before streaming
 	var initialReplay []domain.KDSStreamEvent
-	rows, err := s.pool.Query(c.UserContext(), `
+	rows, err := s.queries(c.UserContext()).Query(c.UserContext(), `
 		SELECT id, branch_id, order_id, event_type, created_at
 		FROM "dz-order-events"
 		WHERE branch_id = $1 AND id > $2
@@ -327,7 +327,7 @@ func (s *POSService) handleGetInventory(c *fiber.Ctx) error {
 	branchID := s.resolveBranchID(c, claims)
 	ctx := c.UserContext()
 
-	ingRows, err := s.pool.Query(ctx, `
+	ingRows, err := s.queries(ctx).Query(ctx, `
 		SELECT id, code, name, unit, is_semi_finished, theoretical_qty_grams, cost_per_unit_kurus, updated_at
 		FROM "dz-ingredients"
 		WHERE branch_id = $1
@@ -358,7 +358,7 @@ func (s *POSService) handleGetInventory(c *fiber.Ctx) error {
 		}
 	}
 
-	movRows, err := s.pool.Query(ctx, `
+	movRows, err := s.queries(ctx).Query(ctx, `
 		SELECT m.id, i.code, i.name, COALESCE(m.order_id, 0), m.movement_type, m.delta_grams, m.cost_kurus, m.reason, m.created_at
 		FROM "dz-stock-movements" m
 		JOIN "dz-ingredients" i ON i.id = m.ingredient_id
@@ -428,7 +428,7 @@ func (s *POSService) handleSubmitStockCount(c *fiber.Ctx) error {
 		countMap[strings.TrimSpace(item.IngredientCode)] = item.CountedGrams
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginTx(ctx)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}
@@ -486,7 +486,7 @@ func (s *POSService) handleGetVarianceReport(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	// Check if physical counts exist; if not, compute live report with simulated slight physical variance on first raw ingredient
-	countRows, err := s.pool.Query(ctx, `
+	countRows, err := s.queries(ctx).Query(ctx, `
 		SELECT DISTINCT ON (c.ingredient_id)
 			i.id, i.code, i.name, i.unit, c.theoretical_grams, c.counted_grams, i.cost_per_unit_kurus
 		FROM "dz-stock-counts" c
@@ -506,7 +506,7 @@ func (s *POSService) handleGetVarianceReport(c *fiber.Ctx) error {
 	}
 
 	if len(inputs) == 0 {
-		ingRows, err := s.pool.Query(ctx, `
+		ingRows, err := s.queries(ctx).Query(ctx, `
 			SELECT id, code, name, unit, theoretical_qty_grams, cost_per_unit_kurus
 			FROM "dz-ingredients"
 			WHERE branch_id = $1 AND is_semi_finished = FALSE
@@ -549,7 +549,7 @@ func (s *POSService) handleOpenShift(c *fiber.Ctx) error {
 	}
 
 	var shiftID int64
-	err := s.pool.QueryRow(ctx, `
+	err := s.queries(ctx).QueryRow(ctx, `
 		INSERT INTO "dz-shifts" (branch_id, opened_by, status, opening_cash_kurus)
 		VALUES ($1, $2, 'OPEN', $3)
 		RETURNING id
@@ -583,7 +583,7 @@ func (s *POSService) handleCloseShift(c *fiber.Ctx) error {
 	}
 
 	var shiftID, openCash, cashPay int64
-	err := s.pool.QueryRow(ctx, `
+	err := s.queries(ctx).QueryRow(ctx, `
 		SELECT id, opening_cash_kurus, cash_payments_kurus
 		FROM "dz-shifts"
 		WHERE branch_id = $1 AND status = 'OPEN'
@@ -597,7 +597,7 @@ func (s *POSService) handleCloseShift(c *fiber.Ctx) error {
 		req.ClosingCashKurus = openCash + cashPay
 	}
 
-	_, err = s.pool.Exec(ctx, `
+	_, err = s.queries(ctx).Exec(ctx, `
 		UPDATE "dz-shifts"
 		SET status = 'CLOSED', closed_by = $1, closing_cash_kurus = $2, closed_at = NOW()
 		WHERE id = $3
@@ -607,7 +607,7 @@ func (s *POSService) handleCloseShift(c *fiber.Ctx) error {
 	}
 
 	// Open a fresh shift automatically so continuous operations work smoothly
-	_, _ = s.pool.Exec(ctx, `
+	_, _ = s.queries(ctx).Exec(ctx, `
 		INSERT INTO "dz-shifts" (branch_id, opened_by, status, opening_cash_kurus)
 		VALUES ($1, $2, 'OPEN', $3)
 	`, req.BranchID, claims.UserID, req.ClosingCashKurus)
@@ -628,7 +628,7 @@ func (s *POSService) handleGetZReport(c *fiber.Ctx) error {
 	branchID := s.resolveBranchID(c, claims)
 	ctx := c.UserContext()
 
-	payRows, err := s.pool.Query(ctx, `
+	payRows, err := s.queries(ctx).Query(ctx, `
 		SELECT id, order_id, method, split_mode, amount_kurus, tip_kurus
 		FROM "dz-payments"
 		WHERE branch_id = $1
@@ -648,14 +648,14 @@ func (s *POSService) handleGetZReport(c *fiber.Ctx) error {
 	}
 
 	var totalPaidAcrossOrders, totalDiscountKurus int64
-	_ = s.pool.QueryRow(ctx, `
+	_ = s.queries(ctx).QueryRow(ctx, `
 		SELECT COALESCE(SUM(paid_kurus), 0), COALESCE(SUM(discount_kurus), 0)
 		FROM "dz-orders"
 		WHERE branch_id = $1
 	`, branchID).Scan(&totalPaidAcrossOrders, &totalDiscountKurus)
 
 	var totalWasteKurus int64
-	_ = s.pool.QueryRow(ctx, `
+	_ = s.queries(ctx).QueryRow(ctx, `
 		SELECT COALESCE(SUM(cost_kurus), 0)
 		FROM "dz-stock-movements"
 		WHERE branch_id = $1 AND movement_type = 'WASTE'
@@ -665,7 +665,7 @@ func (s *POSService) handleGetZReport(c *fiber.Ctx) error {
 
 	var shiftID, openingCash int64
 	var shiftStatus string
-	_ = s.pool.QueryRow(ctx, `
+	_ = s.queries(ctx).QueryRow(ctx, `
 		SELECT id, status, opening_cash_kurus
 		FROM "dz-shifts"
 		WHERE branch_id = $1
@@ -696,7 +696,7 @@ func (s *POSService) handleGetHQReport(c *fiber.Ctx) error {
 	}
 	ctx := c.UserContext()
 
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.queries(ctx).Query(ctx, `
 		SELECT
 			b.id, b.code, b.name, b.city,
 			(SELECT COUNT(*) FROM "dz-tables" t WHERE t.branch_id = b.id AND t.status = 'OCCUPIED') AS occupied_tables,
@@ -753,19 +753,24 @@ func (s *POSService) handleListAuditLogs(c *fiber.Ctx) error {
 	if !s.requirePool(c) {
 		return nil
 	}
+	claims, _ := auth.GetClaims(c)
+	branchFilter := int64(0)
+	if claims.Role != auth.RoleHQManager {
+		branchFilter = claims.BranchID
+	}
 	afterID, _ := strconv.ParseInt(c.Query("after_id", "0"), 10, 64)
 	limit, _ := strconv.Atoi(c.Query("limit", "30"))
 	if limit <= 0 || limit > 100 {
 		limit = 30
 	}
 
-	rows, err := s.pool.Query(c.UserContext(), `
+	rows, err := s.queries(c.UserContext()).Query(c.UserContext(), `
 		SELECT id, COALESCE(branch_id, 0), COALESCE(actor_id, 0), actor_role, action, entity_type, entity_id, old_value, new_value, created_at
 		FROM "dz-audit-logs"
-		WHERE ($1 = 0 OR id < $1)
+		WHERE ($1 = 0 OR id < $1) AND ($3::bigint = 0 OR branch_id = $3)
 		ORDER BY id DESC
 		LIMIT $2
-	`, afterID, limit)
+	`, afterID, limit, branchFilter)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "DB_ERROR", err.Error())
 	}

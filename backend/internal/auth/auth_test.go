@@ -122,10 +122,16 @@ func TestRBACMiddleware_401And403And200(t *testing.T) {
 		t.Errorf("expected 401 when using refresh token as access token, got %d", resp4.StatusCode)
 	}
 
-	// 5. Query param ?token= (for SSE EventSource) -> 200
+	// Query tokens are accepted only by the EventSource endpoint.
 	req5 := httptest.NewRequest(http.MethodGet, "/cashier-only?token="+cashierPair.AccessToken, nil)
 	resp5, _ := app.Test(req5, -1)
-	if resp5.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 with query token, got %d", resp5.StatusCode)
+	if resp5.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 with query token outside SSE, got %d", resp5.StatusCode)
+	}
+	app.Get("/api/v1/kds/stream", auth.RequireAuth(testSecret), func(c *fiber.Ctx) error { return c.SendStatus(200) })
+	sse, _ := app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/kds/stream?token="+cashierPair.AccessToken, nil), -1)
+	defer sse.Body.Close()
+	if sse.StatusCode != 200 {
+		t.Errorf("SSE query token rejected: %d", sse.StatusCode)
 	}
 }
