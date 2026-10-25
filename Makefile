@@ -19,7 +19,7 @@ demo-live:
 	docker compose up -d simulator
 
 test:
-	cd backend && go vet ./... && go test -json -race -coverprofile=coverage.out ./... > test-results.jsonl && python3 scripts/check_quality.py && go tool cover -func=coverage.out
+	cd backend && test -z "$$(gofmt -l .)" && go vet ./... && go test -json -race -coverprofile=coverage.out ./... > test-results.jsonl && python3 scripts/check_quality.py && go tool cover -func=coverage.out
 
 load:
 	sh scripts/load-test.sh
