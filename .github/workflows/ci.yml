@@ -1,97 +1,73 @@
-name: CI — Build, Test, Lint, Coverage & End-to-End Verify
+name: Build, lint, race, coverage and live verification
 
 on:
   push:
-    branches: [main, master]
   pull_request:
-    branches: [main, master]
 
 permissions:
   contents: read
 
 jobs:
-  backend-ci:
-    name: Backend (Go 1.23) — Lint, 45+ Tests, Coverage & Build
+  backend:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./backend
+        working-directory: backend
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
           cache-dependency-path: backend/go.sum
-
-      - name: Verify dependencies
-        run: go mod verify
-
-      - name: Run go vet
-        run: go vet ./...
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: ./backend
-
-      - name: Run unit & concurrency tests with coverage report (Domain >= 70%)
+      - run: go mod verify
+      - name: Lint and static analysis
+        run: test -z "$(gofmt -l .)" && go vet ./...
+      - name: Tests, race detector and enforced assignment thresholds
         run: |
-          go test -v -race -coverprofile=coverage.out ./...
-          echo "=== Domain & Auth Coverage Summary ==="
+          go test -json -race -coverprofile=coverage.out ./... > test-results.jsonl
+          python3 scripts/check_quality.py
           go tool cover -func=coverage.out
-
-      - name: Build binaries (API, Simulator, Verify)
-        run: |
-          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/ddo-api ./cmd/api
-          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/simulator ./cmd/simulator
-          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/verify ./cmd/verify
-
-  frontend-ci:
-    name: Frontend (SvelteKit) — Typecheck & Build
+      - run: go build ./cmd/...
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-evidence
+          path: |
+            backend/coverage.out
+            backend/test-results.jsonl
+  frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./frontend
+        working-directory: frontend
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run SvelteKit typecheck (svelte-check)
-        run: npm run check
-
-      - name: Build production bundle (adapter-node)
-        run: npm run build
-
-  docker-build-and-verify:
-    name: Docker Multi-Stage Build & E2E Verification (make verify)
+      - run: npm ci
+      - run: npm run check
+      - run: npm run lint
+      - run: npm run build
+  containers:
     runs-on: ubuntu-latest
-    needs: [backend-ci, frontend-ci]
+    needs: [backend, frontend]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Start stack and run full E2E verification (F-1..F-7, T-1..T-5)
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and start all four non-root services
         run: |
           cp .env.example .env
           docker compose up -d --build --wait
-          curl -fsS -i http://localhost:8080/health | grep 'X-DDO-Case: cc6433'
+          curl -fsSi http://localhost:8080/health | grep -i 'X-DDO-Case: cc6433'
           curl -fsS http://localhost:8080/_hz/cc64 | grep '"status":"ok"'
-          docker compose --profile verify run --rm verify
-          docker compose down -v
+      - name: Verify against PostgreSQL with simulator isolation
+        run: make verify
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v

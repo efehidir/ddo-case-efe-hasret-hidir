@@ -7,6 +7,8 @@
 backend/bin/
 backend/dist/
 backend/coverage.out
+backend/coverage
+backend/test-results.jsonl
 backend/*.test
 
 # Frontend (SvelteKit / Node)

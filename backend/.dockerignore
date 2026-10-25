@@ -1,6 +1,8 @@
 bin/
 dist/
 coverage.out
+coverage
+test-results.jsonl
 *.test
 *.log
 .git

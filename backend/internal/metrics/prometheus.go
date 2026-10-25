@@ -13,12 +13,12 @@ import (
 
 // Collector holds custom and standard Prometheus metrics for the backend service.
 type Collector struct {
-	registry        *prometheus.Registry
-	requestsTotal   *prometheus.CounterVec
-	requestDuration *prometheus.HistogramVec
+	registry         *prometheus.Registry
+	requestsTotal    *prometheus.CounterVec
+	requestDuration  *prometheus.HistogramVec
 	requestsInFlight prometheus.Gauge
-	dbUp            prometheus.Gauge
-	dbPingDuration  prometheus.Gauge
+	dbUp             prometheus.Gauge
+	dbPingDuration   prometheus.Gauge
 }
 
 // NewCollector creates a dedicated Prometheus registry with Go runtime, process, HTTP, and DB metrics.
@@ -118,4 +118,3 @@ func (c *Collector) Handler() fiber.Handler {
 		EnableOpenMetrics: true,
 	}))
 }
-
