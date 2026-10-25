@@ -1,163 +1,5945 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "DDO Referans Altyapı API (Go Fiber + PostgreSQL 16)",
-    "description": "Go (1.22+) ve Fiber çatısı üzerinde çalışan, PostgreSQL 16 (pgx/v5) bağlantı havuzu, sağlık kontrolü (/health), veritabanı tanılama (/api/v1/db/check) ve Prometheus metriklerini (/metrics) sunan referans servis API dokümantasyonu.",
-    "version": "1.0.0"
+    "title": "SofraPOS API",
+    "version": "1.1.0",
+    "description": "Go/Fiber + PostgreSQL 16. Tutarlar tam sayı kuruştur. Tüm yanıtlar X-DDO-Case: cc6433 taşır. Merkez yönetim tüm şubelere, diğer personel yalnızca kendi şubesine erişir. Kritik mutasyonlar transaction, şube kilidi ve kullanıcı/metot/yol kapsamlı Idempotency-Key ile korunur. Aynı anahtar farklı gövdeyle 409 döner."
   },
   "servers": [
     {
-      "url": "http://localhost:8080",
-      "description": "Yerel Docker Compose / Geliştirme Sunucusu"
+      "url": "http://localhost:8080"
     }
   ],
-  "tags": [
-    { "name": "Health", "description": "Servis ve veritabanı sağlık kontrolleri" },
-    { "name": "Database", "description": "PostgreSQL 16 bağlantı ve havuz tanılama uçları" },
-    { "name": "Observability", "description": "Prometheus metrikleri ve OpenAPI spesifikasyonu" }
+  "security": [
+    {
+      "bearerAuth": []
+    }
   ],
   "paths": {
-    "/health": {
+    "/": {
       "get": {
-        "tags": ["Health"],
-        "summary": "Servis ve PostgreSQL bağlantı sağlığını döner",
-        "operationId": "getHealth",
+        "summary": "Servis bilgisi ve uç noktalar",
+        "description": "Servis bilgisi ve uç noktalar",
+        "operationId": "get",
+        "tags": [
+          "system"
+        ],
         "responses": {
           "200": {
-            "description": "Servis ve veritabanı sağlıklı",
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
               }
             }
           },
           "503": {
-            "description": "Veritabanı bağlantısı başarısız veya servis sağlıksız",
+            "description": "Veritabanı erişilemiyor",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
-    "/api/v1/db/check": {
+    "/health": {
       "get": {
-        "tags": ["Database"],
-        "summary": "Aktif PostgreSQL 16 sorgusu ve bağlantı havuzu tanılaması çalıştırır",
-        "operationId": "checkDatabaseConnection",
+        "summary": "Uygulama ve veritabanı sağlığı",
+        "description": "Uygulama ve veritabanı sağlığı",
+        "operationId": "getHealth",
+        "tags": [
+          "system"
+        ],
         "responses": {
           "200": {
-            "description": "Veritabanı sorgusu başarıyla tamamlandı",
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DatabaseDiagnosticResponse" }
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
               }
             }
           },
           "503": {
-            "description": "Veritabanı sorgusu başarısız oldu",
+            "description": "Veritabanı erişilemiyor; status=degraded ve database tanılaması döner.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/DatabaseDiagnosticResponse" }
+                "schema": {
+                  "type": "object"
+                }
               }
             }
           }
-        }
+        },
+        "security": []
+      }
+    },
+    "/_hz/cc64": {
+      "get": {
+        "summary": "Uygulama ve veritabanı sağlığı",
+        "description": "Uygulama ve veritabanı sağlığı",
+        "operationId": "get_HzCc64",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
       }
     },
     "/metrics": {
       "get": {
-        "tags": ["Observability"],
-        "summary": "Prometheus formatında metrikleri döner",
+        "summary": "Metrikler veya API dokümanı",
+        "description": "Metrikler veya API dokümanı",
         "operationId": "getMetrics",
+        "tags": [
+          "system"
+        ],
         "responses": {
           "200": {
-            "description": "Prometheus metrik çıktısı",
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
             "content": {
               "text/plain": {
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/openapi.yaml": {
+      "get": {
+        "summary": "Metrikler veya API dokümanı",
+        "description": "Metrikler veya API dokümanı",
+        "operationId": "getOpenapi.Yaml",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "summary": "Metrikler veya API dokümanı",
+        "description": "Metrikler veya API dokümanı",
+        "operationId": "getOpenapi.Json",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/docs": {
+      "get": {
+        "summary": "Metrikler veya API dokümanı",
+        "description": "Metrikler veya API dokümanı",
+        "operationId": "getDocs",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/db/check": {
+      "get": {
+        "summary": "Veritabanı tanılaması",
+        "description": "Veritabanı tanılaması",
+        "operationId": "getApiV1DbCheck",
+        "tags": [
+          "db"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "hq_manager"
+        ]
+      }
+    },
+    "/api/v1/auth/demo-accounts": {
+      "get": {
+        "summary": "Yerel demo hesapları",
+        "description": "Yerel demo hesapları",
+        "operationId": "getApiV1AuthDemo-Accounts",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Bcrypt parola ile oturum aç",
+        "description": "Bcrypt parola ile oturum aç",
+        "operationId": "postApiV1AuthLogin",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
               }
             }
           }
         }
       }
     },
-    "/openapi.yaml": {
-      "get": {
-        "tags": ["Observability"],
-        "summary": "OpenAPI 3.0.3 YAML spesifikasyonu",
-        "operationId": "getOpenAPIYAML",
+    "/api/v1/auth/refresh": {
+      "post": {
+        "summary": "Aktif kullanıcı için token yenile",
+        "description": "Aktif kullanıcı için token yenile",
+        "operationId": "postApiV1AuthRefresh",
+        "tags": [
+          "auth"
+        ],
         "responses": {
-          "200": { "description": "OpenAPI YAML dosyası" }
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Refresh"
+              }
+            }
+          }
         }
       }
     },
-    "/openapi.json": {
+    "/api/v1/auth/me": {
       "get": {
-        "tags": ["Observability"],
-        "summary": "OpenAPI 3.0.3 JSON spesifikasyonu",
-        "operationId": "getOpenAPIJSON",
+        "summary": "Aktif kullanıcı",
+        "description": "Aktif kullanıcı",
+        "operationId": "getApiV1AuthMe",
+        "tags": [
+          "auth"
+        ],
         "responses": {
-          "200": { "description": "OpenAPI JSON dosyası" }
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "chef",
+          "branch_manager",
+          "hq_manager",
+          "customer"
+        ]
+      }
+    },
+    "/api/v1/branches": {
+      "get": {
+        "summary": "Sekiz şube",
+        "description": "Sekiz şube",
+        "operationId": "getApiV1Branches",
+        "tags": [
+          "branches"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/menu": {
+      "get": {
+        "summary": "Menü, varyantlar ve modifier seçenekleri",
+        "description": "Menü, varyantlar ve modifier seçenekleri",
+        "operationId": "getApiV1Menu",
+        "tags": [
+          "menu"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/menu/items": {
+      "post": {
+        "summary": "Ortak menüye ürün ekle",
+        "description": "Ortak menüye ürün ekle",
+        "operationId": "postApiV1MenuItems",
+        "tags": [
+          "menu"
+        ],
+        "responses": {
+          "201": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMenuItem"
+              }
+            }
+          }
         }
+      }
+    },
+    "/api/v1/tables": {
+      "get": {
+        "summary": "Şube masa planı",
+        "description": "Şube masa planı",
+        "operationId": "getApiV1Tables",
+        "tags": [
+          "tables"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "chef",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Varsayılan token şubesi; yalnızca hq_manager farklı şube seçebilir."
+          }
+        ]
+      }
+    },
+    "/api/v1/orders": {
+      "get": {
+        "summary": "Keyset sayfalı adisyon listesi",
+        "description": "Keyset sayfalı adisyon listesi",
+        "operationId": "getApiV1Orders",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "chef",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Varsayılan token şubesi; yalnızca hq_manager farklı şube seçebilir."
+          },
+          {
+            "name": "after_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": ""
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "description": ""
+          }
+        ]
+      },
+      "post": {
+        "summary": "Adisyon aç veya masanın açık adisyonunu getir",
+        "description": "Boş masa için 201, zaten açık masa için 200. Başka şubenin masası reddedilir.",
+        "operationId": "postApiV1Orders",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "201": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenOrder"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orders/{id}": {
+      "get": {
+        "summary": "Adisyon ayrıntısı",
+        "description": "Adisyon ayrıntısı",
+        "operationId": "getApiV1Orders{Id}",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "chef",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          }
+        ]
+      }
+    },
+    "/api/v1/orders/{id}/rebuild": {
+      "get": {
+        "summary": "Olaylardan durum ve toplam tutarlılığı",
+        "description": "Olaylardan durum ve toplam tutarlılığı",
+        "operationId": "getApiV1Orders{Id}Rebuild",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          }
+        ]
+      }
+    },
+    "/api/v1/orders/{id}/items": {
+      "post": {
+        "summary": "Kalem ekle ve reçete stoğunu atomik düş",
+        "description": "expected_version eskiyse 409. Varyant ve modifier ürüne ait olmalı. Kapalı adisyona ekleme reddedilir. Ödeme başladıysa mevcut kalem indirimleri korunur.",
+        "operationId": "postApiV1Orders{Id}Items",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "201": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddItem"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orders/{id}/items/{itemId}/cancel": {
+      "post": {
+        "summary": "İptal, stok iadesi veya gerçek reçete firesi",
+        "description": "Üretim öncesi iptal stok iadesidir. Üretim sonrası tüketim WASTE olarak sınıflanır; ikinci kez stok düşülmez. Ödeme başlamışsa 409.",
+        "operationId": "postApiV1Orders{Id}Items{Itemid}Cancel",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelItem"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orders/{id}/move": {
+      "post": {
+        "summary": "Boş masaya taşı",
+        "description": "Boş masaya taşı",
+        "operationId": "postApiV1Orders{Id}Move",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveOrder"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orders/merge": {
+      "post": {
+        "summary": "Aynı şubenin ödenmemiş adisyonlarını birleştir",
+        "description": "Aynı şubenin ödenmemiş adisyonlarını birleştir",
+        "operationId": "postApiV1OrdersMerge",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeOrders"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns": {
+      "get": {
+        "summary": "Aktif kurallar ve kuponlar",
+        "description": "Aktif kurallar ve kuponlar",
+        "operationId": "getApiV1Campaigns",
+        "tags": [
+          "campaigns"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "chef",
+          "branch_manager",
+          "hq_manager",
+          "customer"
+        ]
+      }
+    },
+    "/api/v1/orders/{id}/apply-campaigns": {
+      "post": {
+        "summary": "En avantajlı kampanyayı uygula",
+        "description": "Ödeme başladıysa 409. Sepet değişirse ödeme öncesi indirim temizlenir; yeniden uygulayın. Saat sunucunun Europe/Istanbul saatidir; current_hour yalnızca APP_ENV=test için kullanılabilir.",
+        "operationId": "postApiV1Orders{Id}Apply-Campaigns",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyCampaigns"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orders/{id}/split-preview": {
+      "post": {
+        "summary": "Eşit, kalem veya özel tutar önizlemesi",
+        "description": "Eşit, kalem veya özel tutar önizlemesi",
+        "operationId": "postApiV1Orders{Id}Split-Preview",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SplitPreview"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orders/{id}/payments": {
+      "post": {
+        "summary": "Ödeme ve kalem bakiyelerini atomik kapat",
+        "description": "FULL tutarı 0 ise tüm kalan alınır. EQUAL/CUSTOM pozitif amount_kurus ister. BY_ITEM seçilen kalemlerin tam kalanını ister. MIXED iki pozitif alt tutar ister; bahşiş kart ayağına yazılır. Açık vardiya zorunludur.",
+        "operationId": "postApiV1Orders{Id}Payments",
+        "tags": [
+          "orders"
+        ],
+        "responses": {
+          "201": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Payment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/kds/items": {
+      "get": {
+        "summary": "KDS istasyon, kurs ve gecikme anlık görüntüsü",
+        "description": "KDS istasyon, kurs ve gecikme anlık görüntüsü",
+        "operationId": "getApiV1KdsItems",
+        "tags": [
+          "kds"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "chef",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Varsayılan token şubesi; yalnızca hq_manager farklı şube seçebilir."
+          },
+          {
+            "name": "station",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "cold",
+                "hot",
+                "bar"
+              ]
+            },
+            "description": ""
+          }
+        ]
+      }
+    },
+    "/api/v1/kds/items/{itemId}/status": {
+      "patch": {
+        "summary": "PENDING → PREPARING → READY → SERVED",
+        "description": "PENDING → PREPARING → READY → SERVED",
+        "operationId": "patchApiV1KdsItems{Itemid}Status",
+        "tags": [
+          "kds"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "chef",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KDSStatus"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/kds/events": {
+      "get": {
+        "summary": "Kalıcı olay telafisi",
+        "description": "Kalıcı olay telafisi",
+        "operationId": "getApiV1KdsEvents",
+        "tags": [
+          "kds"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "chef",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Varsayılan token şubesi; yalnızca hq_manager farklı şube seçebilir."
+          },
+          {
+            "name": "since_event_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": ""
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": ""
+          }
+        ]
+      }
+    },
+    "/api/v1/kds/stream": {
+      "get": {
+        "summary": "SSE canlı olaylar ve eksiksiz replay",
+        "description": "Last-Event-ID sorgu imlecine üstün gelir. Kalıcı olaylar 200 kayıtlük partilerle sonuna kadar okunur. event: kds_event, id ve JSON data gönderilir. 25 saniyede bağlantı yenilenir; EventSource otomatik bağlanır. token yalnızca bu uçta EventSource için kabul edilir.",
+        "operationId": "getApiV1KdsStream",
+        "tags": [
+          "kds"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "waiter",
+          "chef",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Varsayılan token şubesi; yalnızca hq_manager farklı şube seçebilir."
+          },
+          {
+            "name": "since_event_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": ""
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": ""
+          },
+          {
+            "name": "once",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ]
+            },
+            "description": ""
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          }
+        ]
+      }
+    },
+    "/api/v1/inventory": {
+      "get": {
+        "summary": "Hammaddeler, teorik stok ve son hareketler",
+        "description": "Hammaddeler, teorik stok ve son hareketler",
+        "operationId": "getApiV1Inventory",
+        "tags": [
+          "inventory"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "chef",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Varsayılan token şubesi; yalnızca hq_manager farklı şube seçebilir."
+          }
+        ]
+      }
+    },
+    "/api/v1/inventory/count": {
+      "post": {
+        "summary": "Yalnızca sayılan hammaddeleri kaydet",
+        "description": "Yalnızca sayılan hammaddeleri kaydet",
+        "operationId": "postApiV1InventoryCount",
+        "tags": [
+          "inventory"
+        ],
+        "responses": {
+          "201": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockCount"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/variance-report": {
+      "get": {
+        "summary": "En son fiziksel sayım farkları",
+        "description": "En son fiziksel sayım farkları",
+        "operationId": "getApiV1InventoryVariance-Report",
+        "tags": [
+          "inventory"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Varsayılan token şubesi; yalnızca hq_manager farklı şube seçebilir."
+          }
+        ]
+      }
+    },
+    "/api/v1/shifts/open": {
+      "post": {
+        "summary": "Şubede tek açık vardiya oluştur",
+        "description": "Şubede tek açık vardiya oluştur",
+        "operationId": "postApiV1ShiftsOpen",
+        "tags": [
+          "shifts"
+        ],
+        "responses": {
+          "201": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenShift"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shifts/close": {
+      "post": {
+        "summary": "Vardiya kapat; otomatik yenisini açma",
+        "description": "closing_cash_kurus gönderilmezse beklenen kasa kullanılır; 0 geçerli bir fiziksel sayımdır. Nakit bahşiş beklenen kasaya dahildir.",
+        "operationId": "postApiV1ShiftsClose",
+        "tags": [
+          "shifts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              },
+              "X-Idempotent-Replay": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Tekrarlanan istekte true"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Ağ hatasında aynı anahtarı ve aynı gövdeyi tekrar gönderin; başarılı yanıt atomik olarak saklanır."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseShift"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports/z-report": {
+      "get": {
+        "summary": "Son veya belirtilen vardiya Z raporu",
+        "description": "Son veya belirtilen vardiya Z raporu",
+        "operationId": "getApiV1ReportsZ-Report",
+        "tags": [
+          "reports"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "cashier",
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": "Varsayılan token şubesi; yalnızca hq_manager farklı şube seçebilir."
+          },
+          {
+            "name": "shift_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            },
+            "description": ""
+          }
+        ]
+      }
+    },
+    "/api/v1/reports/hq": {
+      "get": {
+        "summary": "Sekiz şube için yaşam boyu toplamlar",
+        "description": "Sekiz şube için yaşam boyu toplamlar",
+        "operationId": "getApiV1ReportsHq",
+        "tags": [
+          "reports"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "hq_manager"
+        ]
+      }
+    },
+    "/api/v1/audit-logs": {
+      "get": {
+        "summary": "Keyset sayfalı append-only denetim kayıtları",
+        "description": "Keyset sayfalı append-only denetim kayıtları",
+        "operationId": "getApiV1Audit-Logs",
+        "tags": [
+          "audit-logs"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "branch_manager",
+          "hq_manager"
+        ],
+        "parameters": [
+          {
+            "name": "after_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": ""
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "description": ""
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/reset-demo": {
+      "post": {
+        "summary": "Demo şemasını atomik sıfırla ve seed uygula",
+        "description": "Yalnızca demo kullanımı. Mevcut işlem verilerini siler; seed kullanıcıları, menü, stok ve sekiz açık vardiya oluşturur.",
+        "operationId": "postApiV1AdminReset-Demo",
+        "tags": [
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "Başarılı",
+            "headers": {
+              "X-DDO-Case": {
+                "schema": {
+                  "type": "string",
+                  "example": "cc6433"
+                },
+                "description": "Sabit proje başlığı"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Geçersiz girdi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Kimlik doğrulama gerekli",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol/şube yetkisi yok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Kaynak bulunamadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versiyon, bakiye veya idempotans çakışması",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "İşlem geri alındı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Veritabanı erişilemiyor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "hq_manager"
+        ]
       }
     }
   },
   "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
     "schemas": {
-      "PoolStats": {
+      "Error": {
         "type": "object",
-        "required": ["total_conns", "idle_conns", "acquired_conns", "max_conns"],
         "properties": {
-          "total_conns": { "type": "integer", "example": 5 },
-          "idle_conns": { "type": "integer", "example": 4 },
-          "acquired_conns": { "type": "integer", "example": 1 },
-          "max_conns": { "type": "integer", "example": 25 }
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "branch_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "email": {
+            "type": "string"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "waiter",
+              "cashier",
+              "chef",
+              "branch_manager",
+              "hq_manager",
+              "customer"
+            ]
+          }
         }
       },
-      "DatabaseHealth": {
+      "TokenPair": {
         "type": "object",
-        "required": ["status", "driver", "latency_ms", "pool"],
         "properties": {
-          "status": { "type": "string", "enum": ["up", "down"], "example": "up" },
-          "driver": { "type": "string", "example": "pgx/v5" },
-          "latency_ms": { "type": "number", "example": 0.42 },
-          "pool": { "$ref": "#/components/schemas/PoolStats" },
-          "error": { "type": "string" }
+          "access_token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
         }
       },
-      "HealthResponse": {
+      "Login": {
         "type": "object",
-        "required": ["status", "service", "version", "environment", "timestamp", "uptime_seconds", "database"],
         "properties": {
-          "status": { "type": "string", "enum": ["healthy", "degraded"], "example": "healthy" },
-          "service": { "type": "string", "example": "ddo-backend" },
-          "version": { "type": "string", "example": "1.0.0" },
-          "environment": { "type": "string", "example": "production" },
-          "timestamp": { "type": "string", "format": "date-time" },
-          "uptime_seconds": { "type": "number", "example": 128.4 },
-          "database": { "$ref": "#/components/schemas/DatabaseHealth" }
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "format": "password"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "Refresh": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ]
+      },
+      "OpenOrder": {
+        "type": "object",
+        "properties": {
+          "branch_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "table_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "table_id"
+        ]
+      },
+      "AddItem": {
+        "type": "object",
+        "properties": {
+          "menu_item_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "variant_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "modifier_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          "expected_version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "menu_item_id",
+          "quantity"
+        ]
+      },
+      "CancelItem": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "produce_waste": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "MoveOrder": {
+        "type": "object",
+        "properties": {
+          "target_table_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "target_table_id"
+        ]
+      },
+      "MergeOrders": {
+        "type": "object",
+        "properties": {
+          "source_order_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "target_order_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "source_order_id",
+          "target_order_id"
+        ]
+      },
+      "ApplyCampaigns": {
+        "type": "object",
+        "properties": {
+          "coupon_code": {
+            "type": "string"
+          }
         }
       },
-      "DatabaseDiagnosticResponse": {
+      "SplitPreview": {
         "type": "object",
-        "required": ["connected", "driver", "latency_ms", "pool"],
         "properties": {
-          "connected": { "type": "boolean", "example": true },
-          "driver": { "type": "string", "example": "pgx/v5" },
-          "server_version": { "type": "string", "example": "PostgreSQL 16.4" },
-          "current_database": { "type": "string", "example": "ddo_db" },
-          "current_user": { "type": "string", "example": "ddo_user" },
-          "server_time": { "type": "string", "format": "date-time" },
-          "latency_ms": { "type": "number", "example": 1.15 },
-          "total_checks": { "type": "integer", "example": 12 },
-          "pool": { "$ref": "#/components/schemas/PoolStats" },
-          "error": { "type": "string" }
+          "split_mode": {
+            "type": "string",
+            "enum": [
+              "EQUAL",
+              "BY_ITEM",
+              "CUSTOM"
+            ]
+          },
+          "parts": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "selected_item_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          "custom_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          }
+        },
+        "required": [
+          "split_mode"
+        ]
+      },
+      "Payment": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "CASH",
+              "CARD",
+              "MIXED"
+            ]
+          },
+          "split_mode": {
+            "type": "string",
+            "enum": [
+              "FULL",
+              "EQUAL",
+              "BY_ITEM",
+              "CUSTOM",
+              "MIXED"
+            ]
+          },
+          "amount_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "cash_amount_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "card_amount_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "tip_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "selected_item_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "method"
+        ]
+      },
+      "KDSStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PREPARING",
+              "READY",
+              "SERVED"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "StockCount": {
+        "type": "object",
+        "properties": {
+          "branch_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "counts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "ingredient_code": {
+                  "type": "string"
+                },
+                "counted_grams": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "ingredient_code",
+                "counted_grams"
+              ]
+            }
+          }
+        },
+        "required": [
+          "counts"
+        ]
+      },
+      "OpenShift": {
+        "type": "object",
+        "properties": {
+          "branch_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "opening_cash_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          }
+        }
+      },
+      "CloseShift": {
+        "type": "object",
+        "properties": {
+          "branch_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "closing_cash_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          }
+        }
+      },
+      "CreateMenuItem": {
+        "type": "object",
+        "properties": {
+          "category_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "base_price_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "station": {
+            "type": "string",
+            "enum": [
+              "cold",
+              "hot",
+              "bar"
+            ]
+          },
+          "course": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "prep_time_sec": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "category_id",
+          "code",
+          "name",
+          "base_price_kurus"
+        ]
+      },
+      "OrderItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "menu_item_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "item_name": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "variant_name": {
+            "type": "string"
+          },
+          "modifier_names": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "unit_price_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "line_subtotal_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "allocated_discount_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "net_total_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "paid_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "remaining_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "station": {
+            "type": "string",
+            "enum": [
+              "cold",
+              "hot",
+              "bar"
+            ]
+          },
+          "course": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "kds_status": {
+            "type": "string"
+          },
+          "is_produced": {
+            "type": "boolean"
+          },
+          "is_cancelled": {
+            "type": "boolean"
+          },
+          "cancel_reason": {
+            "type": "string"
+          }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "branch_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "table_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "table_code": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "PARTIALLY_PAID",
+              "PAID",
+              "MERGED",
+              "CANCELLED"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "subtotal_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "discount_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "total_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "paid_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "remaining_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "tip_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderItem"
+            }
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "coupon_code": {
+            "type": "string"
+          },
+          "campaign_explanation": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "KDSEvent": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "branch_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "order_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "station": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ZReport": {
+        "type": "object",
+        "properties": {
+          "branch_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "shift_id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "shift_status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CLOSED"
+            ]
+          },
+          "cash_payments_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "card_payments_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "total_payments_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "total_tips_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "opening_cash_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "closing_cash_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "expected_cash_kurus": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Tam sayı kuruş; kayan nokta kabul edilmez."
+          },
+          "cash_variance_kurus": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "is_balanced": {
+            "type": "boolean"
+          }
         }
       }
     }
   }
 }
-

@@ -56,4 +56,3 @@ func RegisterRoutes(app *fiber.App) {
 		return c.Status(fiber.StatusOK).SendString(swaggerUIHTML)
 	})
 }
-

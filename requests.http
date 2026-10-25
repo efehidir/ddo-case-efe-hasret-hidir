@@ -1,6 +1,8 @@
 # ==============================================================================
 # SofraPOS — VS Code REST Client Koleksiyonu (requests.http)
 # Tüm demo hesapları için varsayılan parola: Sofra2026!
+# Önce make reset-demo (simülatörü durdurur), ardından login isteklerini çalıştırın.
+# İstekleri başlık sırasıyla tek tek gönderin. Olumsuz testlerin beklenen kodları başlıkta yazılıdır.
 # ==============================================================================
 
 @baseUrl = http://localhost:8080
@@ -12,10 +14,6 @@ Accept: application/json
 
 ###
 GET {{baseUrl}}/_hz/cc64
-Accept: application/json
-
-###
-GET {{baseUrl}}/api/v1/db/check
 Accept: application/json
 
 ###
@@ -45,7 +43,7 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
-@waiterToken = {{loginWaiter.response.body.access_token}}
+@waiterToken = {{loginWaiter.response.body.$.access_token}}
 
 ### 5. Giriş: Kasiyer (cashier)
 # @name loginCashier
@@ -57,7 +55,7 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
-@cashierToken = {{loginCashier.response.body.access_token}}
+@cashierToken = {{loginCashier.response.body.$.access_token}}
 
 ### 6. Giriş: Aşçı / Mutfak KDS (chef)
 # @name loginChef
@@ -69,7 +67,7 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
-@chefToken = {{loginChef.response.body.access_token}}
+@chefToken = {{loginChef.response.body.$.access_token}}
 
 ### 7. Giriş: Şube Müdürü (branch_manager)
 # @name loginManager
@@ -81,7 +79,7 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
-@managerToken = {{loginManager.response.body.access_token}}
+@managerToken = {{loginManager.response.body.$.access_token}}
 
 ### 8. Giriş: Merkez Yönetim (hq_manager)
 # @name loginHQ
@@ -93,7 +91,7 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
-@hqToken = {{loginHQ.response.body.access_token}}
+@hqToken = {{loginHQ.response.body.$.access_token}}
 
 ### 9. Giriş: Müşteri / QR Menü (customer)
 # @name loginCustomer
@@ -105,7 +103,7 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
-@customerToken = {{loginCustomer.response.body.access_token}}
+@customerToken = {{loginCustomer.response.body.$.access_token}}
 
 ### 10. Yetki İhlali Testi (Garson rolü Merkez Yönetim raporuna erişemez -> 403 Forbidden)
 GET {{baseUrl}}/api/v1/reports/hq
@@ -148,9 +146,10 @@ Content-Type: application/json
   "table_id": 1
 }
 
-@orderId = {{createOrder.response.body.id}}
+@orderId = {{createOrder.response.body.$.id}}
 
 ### 15. F-2 & T-4: Adisyona Varyantlı ve Modifier'lı Kalem Ekleme (İskender 1.5 Porsiyon + Ekstra Tereyağı)
+# @name addIskender
 POST {{baseUrl}}/api/v1/orders/{{orderId}}/items
 Authorization: Bearer {{waiterToken}}
 Content-Type: application/json
@@ -162,7 +161,7 @@ Content-Type: application/json
   "modifier_ids": [1]
 }
 
-### 16. T-5: Kampanya Tetiklemek İçin 3 Adet Lahmacun + 1 Ayran + 1 Künefe Ekleme
+### 16. T-5: Kampanya Tetiklemek İçin 3 Adet Lahmacun Ekleme
 POST {{baseUrl}}/api/v1/orders/{{orderId}}/items
 Authorization: Bearer {{waiterToken}}
 Content-Type: application/json
@@ -183,8 +182,7 @@ Authorization: Bearer {{cashierToken}}
 Content-Type: application/json
 
 {
-  "coupon_code": "SOFRA50",
-  "current_hour": 19
+  "coupon_code": "SOFRA50"
 }
 
 ### 19. F-3 & T-3: Mutfak Ekranı (KDS) Aktif Siparişler
@@ -248,5 +246,152 @@ Authorization: Bearer {{hqToken}}
 GET {{baseUrl}}/api/v1/audit-logs?after_id=0&limit=20
 Authorization: Bearer {{hqToken}}
 
-### 28. Demo Verisini İlk Seed Haline Sıfırlama (make reset-demo)
+### 29. Refresh token ile oturum yenile (loginWaiter önce çalışmalı)
+POST {{baseUrl}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{"refresh_token":"{{loginWaiter.response.body.$.refresh_token}}"}
+
+### 30. Aktif kullanıcı
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{waiterToken}}
+
+### 31. Şubeler
+GET {{baseUrl}}/api/v1/branches
+
+### 32. Keyset sayfalı adisyonlar
+GET {{baseUrl}}/api/v1/orders?branch_id=1&after_id=0&limit=20
+Authorization: Bearer {{waiterToken}}
+
+### 33. Adisyon ayrıntısı (reset isteğinden önce çalıştırın)
+GET {{baseUrl}}/api/v1/orders/{{orderId}}
+Authorization: Bearer {{waiterToken}}
+
+### 34. Kampanyalar
+GET {{baseUrl}}/api/v1/campaigns
+Authorization: Bearer {{cashierToken}}
+
+### 35. KDS canlı SSE (isteği iptal edip Last-Event-ID ile tekrar bağlanabilirsiniz)
+GET {{baseUrl}}/api/v1/kds/stream?branch_id=1&since_event_id=0
+Authorization: Bearer {{chefToken}}
+Accept: text/event-stream
+Last-Event-ID: 0
+
+### 36. KDS PENDING -> PREPARING (addIskender önce çalışmalı)
+PATCH {{baseUrl}}/api/v1/kds/items/{{addIskender.response.body.$.items[0].id}}/status
+Authorization: Bearer {{chefToken}}
+Content-Type: application/json
+
+{"status":"PREPARING"}
+
+### 37. KDS PREPARING -> READY
+PATCH {{baseUrl}}/api/v1/kds/items/{{addIskender.response.body.$.items[0].id}}/status
+Authorization: Bearer {{chefToken}}
+Content-Type: application/json
+
+{"status":"READY"}
+
+### 38. KDS READY -> SERVED
+PATCH {{baseUrl}}/api/v1/kds/items/{{addIskender.response.body.$.items[0].id}}/status
+Authorization: Bearer {{chefToken}}
+Content-Type: application/json
+
+{"status":"SERVED"}
+
+### 39. Son sayım farkı raporu
+GET {{baseUrl}}/api/v1/inventory/variance-report?branch_id=1
+Authorization: Bearer {{managerToken}}
+
+### 40. Vardiya kapat (0 fiziksel kasa geçerlidir; ödemelerden sonra deneyin)
+POST {{baseUrl}}/api/v1/shifts/close
+Authorization: Bearer {{cashierToken}}
+Content-Type: application/json
+
+{"branch_id":1,"closing_cash_kurus":0}
+
+### 41. Yeni vardiya aç (kapama isteğinden sonra; ikinci kez 409)
+POST {{baseUrl}}/api/v1/shifts/open
+Authorization: Bearer {{cashierToken}}
+Content-Type: application/json
+
+{"branch_id":1,"opening_cash_kurus":500000}
+
+### 42. Bağımsız taşıma / birleştirme / iptal senaryosu: kaynak masa
+# @name sourceOrder
+POST {{baseUrl}}/api/v1/orders
+Authorization: Bearer {{waiterToken}}
+Content-Type: application/json
+
+{"branch_id":1,"table_id":3}
+
+### 43. Kaynağa kalem ekle
+# @name sourceItem
+POST {{baseUrl}}/api/v1/orders/{{sourceOrder.response.body.$.id}}/items
+Authorization: Bearer {{waiterToken}}
+Content-Type: application/json
+
+{"menu_item_id":4,"quantity":1}
+
+### 44. İptal ve tam stok iadesi (üretilmiş kalemde produce_waste:true gönderin)
+POST {{baseUrl}}/api/v1/orders/{{sourceOrder.response.body.$.id}}/items/{{sourceItem.response.body.$.items[0].id}}/cancel
+Authorization: Bearer {{waiterToken}}
+Content-Type: application/json
+
+{"reason":"Müşteri vazgeçti","produce_waste":false}
+
+### 45. Kaynağı boş T-04 masasına taşı
+POST {{baseUrl}}/api/v1/orders/{{sourceOrder.response.body.$.id}}/move
+Authorization: Bearer {{waiterToken}}
+Content-Type: application/json
+
+{"target_table_id":4}
+
+### 46. Hedef masa aç
+# @name targetOrder
+POST {{baseUrl}}/api/v1/orders
+Authorization: Bearer {{waiterToken}}
+Content-Type: application/json
+
+{"branch_id":1,"table_id":5}
+
+### 47. İki ödenmemiş adisyonu birleştir (kaynak MERGED olur)
+POST {{baseUrl}}/api/v1/orders/merge
+Authorization: Bearer {{waiterToken}}
+Content-Type: application/json
+
+{"source_order_id":{{sourceOrder.response.body.$.id}},"target_order_id":{{targetOrder.response.body.$.id}}}
+
+### 48. Başka şube erişimi engellenmeli: 403
+GET {{baseUrl}}/api/v1/tables?branch_id=2
+Authorization: Bearer {{waiterToken}}
+
+### 49. Yanlış parola: 401
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{"email":"garson@sofrapos.local","password":"yanlis"}
+
+### 50. Yetkisiz reset: 403
 POST {{baseUrl}}/api/v1/admin/reset-demo
+Authorization: Bearer {{waiterToken}}
+
+### 51. OpenAPI JSON
+GET {{baseUrl}}/openapi.json
+
+### 52. OpenAPI YAML
+GET {{baseUrl}}/openapi.yaml
+
+### 53. Swagger UI
+GET {{baseUrl}}/docs
+
+### 54. Demo Verisini İlk Seed Haline Sıfırlama (make reset-demo)
+# DİKKAT: Mevcut işlem verilerini temizler. Son adım olarak çalıştırın.
+POST {{baseUrl}}/api/v1/admin/reset-demo
+Authorization: Bearer {{hqToken}}
+
+### 55. Yetkili veritabanı tanılaması
+GET {{baseUrl}}/api/v1/db/check
+Authorization: Bearer {{hqToken}}
+
+### 56. Servis bilgisi
+GET {{baseUrl}}/
