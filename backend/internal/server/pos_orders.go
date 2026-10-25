@@ -547,7 +547,7 @@ func (s *POSService) recalculateOrderTotalsTx(ctx context.Context, tx pgx.Tx, or
 func (s *POSService) deductRecipeStockTx(
 	ctx context.Context,
 	tx pgx.Tx,
-	branchID, orderID, menuItemID int64,
+	branchID, orderID, orderItemID, menuItemID int64,
 	quantity int,
 	variantMultiplierPct int,
 	modifiers []domain.ModifierRecipeEffect,
@@ -580,21 +580,24 @@ func (s *POSService) deductRecipeStockTx(
 		err := tx.QueryRow(ctx, `
 			UPDATE "dz-ingredients"
 			SET theoretical_qty_grams = theoretical_qty_grams - $1, updated_at = NOW()
-			WHERE branch_id = $2 AND code = $3
+			WHERE branch_id = $2 AND code = $3 AND theoretical_qty_grams >= $1
 			RETURNING id, cost_per_unit_kurus
 		`, r.TotalGrams, branchID, r.IngredientCode).Scan(&ingID, &costPerUnit)
 		if err != nil {
-			continue
+			return fmt.Errorf("stok yetersiz veya hammadde eksik: %s: %w", r.IngredientCode, err)
 		}
 
 		reason := "Sipariş reçete düşümü"
 		if r.FromSubRecipe {
 			reason = fmt.Sprintf("Alt reçete (%s) üzerinden hammadde düşümü", r.SubRecipeSource)
 		}
-		_, _ = tx.Exec(ctx, `
-			INSERT INTO "dz-stock-movements" (branch_id, ingredient_id, order_id, movement_type, delta_grams, cost_kurus, reason)
-			VALUES ($1, $2, $3, 'SALE_DEDUCTION', $4, $5, $6)
-		`, branchID, ingID, orderID, -r.TotalGrams, r.TotalGrams*costPerUnit, reason)
+		_, err = tx.Exec(ctx, `
+			INSERT INTO "dz-stock-movements" (branch_id, ingredient_id, order_id, order_item_id, movement_type, delta_grams, cost_kurus, reason)
+			VALUES ($1, $2, $3, $4, 'SALE_DEDUCTION', $5, $6, $7)
+		`, branchID, ingID, orderID, orderItemID, -r.TotalGrams, r.TotalGrams*costPerUnit, reason)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -740,7 +743,9 @@ func (s *POSService) handleAddOrderItem(c *fiber.Ctx) error {
 	}
 
 	// Deduct theoretical stock via recipe + sub-recipe resolver
-	_ = s.deductRecipeStockTx(ctx, tx, branchID, orderID, req.MenuItemID, req.Quantity, variantMultiplierPct, modEffects)
+	if err := s.deductRecipeStockTx(ctx, tx, branchID, orderID, orderItemID, req.MenuItemID, req.Quantity, variantMultiplierPct, modEffects); err != nil {
+		return auth.RespondError(c, 409, "STOCK_UNAVAILABLE", err.Error())
+	}
 
 	// Record event in "dz-order-events"
 	evID, err := s.appendOrderEventTx(ctx, tx, branchID, orderID, claims.UserID, domain.EventItemAdded, domain.ItemAddedPayload{
@@ -863,25 +868,45 @@ func (s *POSService) handleCancelOrderItem(c *fiber.Ctx) error {
 	}
 
 	if wasteRecorded {
-		// Record waste movement in "dz-stock-movements" and add waste cost to open shift
-		var firstIngID, costPerUnit int64
-		_ = tx.QueryRow(ctx, `
-			SELECT id, cost_per_unit_kurus FROM "dz-ingredients"
-			WHERE branch_id = $1 ORDER BY id ASC LIMIT 1
-		`, branchID).Scan(&firstIngID, &costPerUnit)
-		wasteGrams := int64(150 * qty)
-		wasteCost := lineSub / 3
-		if firstIngID > 0 {
-			_, _ = tx.Exec(ctx, `
-				INSERT INTO "dz-stock-movements" (branch_id, ingredient_id, order_id, movement_type, delta_grams, cost_kurus, reason)
-				VALUES ($1, $2, $3, 'WASTE', $4, $5, $6)
-			`, branchID, firstIngID, orderID, -wasteGrams, wasteCost, "Üretilmiş kalem iptali (Fire): "+itemName+" - "+req.Reason)
+		// Reclassify the exact original recipe consumption as waste; do not deduct twice.
+		var wasteCost int64
+		if err := tx.QueryRow(ctx, `SELECT COALESCE(SUM(cost_kurus),0) FROM "dz-stock-movements" WHERE order_item_id=$1 AND movement_type='SALE_DEDUCTION'`, itemID).Scan(&wasteCost); err != nil {
+			return err
 		}
-		_, _ = tx.Exec(ctx, `
+		if _, err := tx.Exec(ctx, `UPDATE "dz-stock-movements" SET movement_type='WASTE', reason=$1 WHERE order_item_id=$2 AND movement_type='SALE_DEDUCTION'`, "Üretilmiş kalem iptali: "+itemName+" - "+req.Reason, itemID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
 			UPDATE "dz-shifts"
 			SET total_waste_kurus = total_waste_kurus + $1
 			WHERE branch_id = $2 AND status = 'OPEN'
-		`, wasteCost, branchID)
+		`, wasteCost, branchID); err != nil {
+			return err
+		}
+	} else {
+		rows, err := tx.Query(ctx, `SELECT ingredient_id, -delta_grams, cost_kurus FROM "dz-stock-movements" WHERE order_item_id=$1 AND movement_type='SALE_DEDUCTION' ORDER BY ingredient_id`, itemID)
+		if err != nil {
+			return err
+		}
+		type restoration struct{ id, grams, cost int64 }
+		var restorations []restoration
+		for rows.Next() {
+			var r restoration
+			if err := rows.Scan(&r.id, &r.grams, &r.cost); err != nil {
+				rows.Close()
+				return err
+			}
+			restorations = append(restorations, r)
+		}
+		rows.Close()
+		for _, r := range restorations {
+			if _, err := tx.Exec(ctx, `UPDATE "dz-ingredients" SET theoretical_qty_grams=theoretical_qty_grams+$1, updated_at=NOW() WHERE id=$2`, r.grams, r.id); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO "dz-stock-movements" (branch_id,ingredient_id,order_id,order_item_id,movement_type,delta_grams,cost_kurus,reason) VALUES ($1,$2,$3,$4,'ADJUSTMENT',$5,$6,$7)`, branchID, r.id, orderID, itemID, r.grams, -r.cost, "Üretim öncesi iptal iadesi: "+req.Reason); err != nil {
+				return err
+			}
+		}
 	}
 
 	evID, err := s.appendOrderEventTx(ctx, tx, branchID, orderID, claims.UserID, domain.EventItemCancelled, domain.ItemCancelledPayload{

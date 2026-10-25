@@ -424,8 +424,18 @@ func (s *POSService) handleSubmitStockCount(c *fiber.Ctx) error {
 	}
 
 	countMap := make(map[string]int64)
+	if len(req.Counts) == 0 || len(req.Counts) > 100 {
+		return auth.RespondError(c, 400, "INVALID_COUNT", "En az bir fiziksel sayım girin.")
+	}
 	for _, item := range req.Counts {
-		countMap[strings.TrimSpace(item.IngredientCode)] = item.CountedGrams
+		code := strings.TrimSpace(item.IngredientCode)
+		if code == "" || item.CountedGrams < 0 || item.CountedGrams > 1000000000 {
+			return auth.RespondError(c, 400, "INVALID_COUNT", "Sayım miktarı negatif olamaz ve geçerli bir malzeme seçilmelidir.")
+		}
+		if _, exists := countMap[code]; exists {
+			return auth.RespondError(c, 400, "DUPLICATE_COUNT", "Aynı hammadde iki kez sayılamaz.")
+		}
+		countMap[code] = item.CountedGrams
 	}
 
 	tx, err := s.beginTx(ctx)
@@ -439,6 +449,7 @@ func (s *POSService) handleSubmitStockCount(c *fiber.Ctx) error {
 		FROM "dz-ingredients"
 		WHERE branch_id = $1 AND is_semi_finished = FALSE
 		ORDER BY id ASC
+		FOR UPDATE
 	`, req.BranchID)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "DB_ERROR", err.Error())
@@ -451,12 +462,15 @@ func (s *POSService) handleSubmitStockCount(c *fiber.Ctx) error {
 			if counted, ok := countMap[in.IngredientCode]; ok {
 				in.CountedGrams = counted
 			} else {
-				in.CountedGrams = in.TheoreticalGrams
+				continue
 			}
 			inputs = append(inputs, in)
 		}
 	}
 	ingRows.Close()
+	if len(inputs) != len(countMap) {
+		return auth.RespondError(c, 400, "UNKNOWN_INGREDIENT", "Sayılan hammaddeler bu şubede bulunamadı.")
+	}
 
 	report := domain.ComputeStockVarianceReport(inputs)
 

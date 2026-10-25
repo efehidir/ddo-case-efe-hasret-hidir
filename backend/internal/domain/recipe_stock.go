@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 )
 
@@ -58,29 +59,81 @@ func ResolveRecipeTree(
 	totals := make(map[string]int64)
 	fromSub := make(map[string]string)
 
+	if len(itemEdges) == 0 {
+		return nil, errors.New("product recipe is missing")
+	}
+	path := map[string]bool{}
+	var expand func(string, int64, string) error
+	expand = func(code string, grams int64, source string) error {
+		children, semi := subRecipes[code]
+		if !semi {
+			if len(code) >= 5 && code[:5] == "SEMI-" {
+				return fmt.Errorf("missing sub-recipe %s", code)
+			}
+			totals[code] += grams
+			if source != "" {
+				fromSub[code] = source
+			}
+			return nil
+		}
+		if path[code] {
+			return fmt.Errorf("recipe cycle at %s", code)
+		}
+		path[code] = true
+		defer delete(path, code)
+		var weight int64
+		for _, child := range children {
+			if child.QtyGrams <= 0 {
+				return errors.New("recipe quantities must be positive")
+			}
+			weight += child.QtyGrams
+		}
+		// Largest remainder keeps every gram when a batch is scaled to a portion.
+		type part struct {
+			code             string
+			grams, remainder int64
+		}
+		parts := make([]part, 0, len(children))
+		var assigned int64
+		for _, child := range children {
+			n := grams * child.QtyGrams
+			parts = append(parts, part{child.IngredientCode, n / weight, n % weight})
+			assigned += n / weight
+		}
+		sort.SliceStable(parts, func(i, j int) bool {
+			if parts[i].remainder != parts[j].remainder {
+				return parts[i].remainder > parts[j].remainder
+			}
+			return parts[i].code < parts[j].code
+		})
+		for i := int64(0); i < grams-assigned; i++ {
+			parts[i].grams++
+		}
+		for _, part := range parts {
+			if err := expand(part.code, part.grams, code); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	for _, edge := range itemEdges {
-		scaledGrams := (edge.QtyGrams * int64(variantMultiplierPct) * int64(quantity)) / 100
-		if subChildren, isSemi := subRecipes[edge.IngredientCode]; isSemi {
-			var subBatchWeight int64
-			for _, child := range subChildren {
-				subBatchWeight += child.QtyGrams
-			}
-			if subBatchWeight <= 0 {
-				subBatchWeight = 1
-			}
-			for _, child := range subChildren {
-				childGrams := (scaledGrams * child.QtyGrams) / subBatchWeight
-				totals[child.IngredientCode] += childGrams
-				fromSub[child.IngredientCode] = edge.IngredientCode
-			}
-		} else {
-			totals[edge.IngredientCode] += scaledGrams
+		if edge.QtyGrams <= 0 {
+			return nil, errors.New("recipe quantities must be positive")
+		}
+		scaled := (edge.QtyGrams * int64(variantMultiplierPct) * int64(quantity)) / 100
+		if err := expand(edge.IngredientCode, scaled, ""); err != nil {
+			return nil, err
 		}
 	}
 
 	for _, mod := range modifiers {
-		if mod.IngredientCode != "" && mod.ExtraQtyGrams > 0 {
-			totals[mod.IngredientCode] += mod.ExtraQtyGrams * int64(quantity)
+		if mod.IngredientCode != "" {
+			if mod.ExtraQtyGrams < 0 {
+				// Removal scales with the portion, while an extra is a fixed serving.
+				totals[mod.IngredientCode] += mod.ExtraQtyGrams * int64(quantity) * int64(variantMultiplierPct) / 100
+			} else {
+				totals[mod.IngredientCode] += mod.ExtraQtyGrams * int64(quantity)
+			}
 		}
 	}
 

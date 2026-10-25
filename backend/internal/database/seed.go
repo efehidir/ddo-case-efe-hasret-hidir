@@ -17,6 +17,9 @@ var migration001DownSQL string
 //go:embed migrations/002_integrity.up.sql
 var migration002UpSQL string
 
+//go:embed migrations/003_recipe_modifiers.up.sql
+var migration003UpSQL string
+
 // DefaultDemoPassword is the password for all seeded demo accounts.
 const DefaultDemoPassword = "Sofra2026!"
 
@@ -53,6 +56,12 @@ func (p *Postgres) MigrateAndSeed(ctx context.Context) error {
 		}
 	}
 
+	if _, err := p.pool.Exec(ctx, migration003UpSQL); err != nil {
+		return err
+	}
+	if _, err := p.pool.Exec(ctx, `INSERT INTO "dz-schema-migrations" (version) VALUES ('003_recipe_modifiers') ON CONFLICT DO NOTHING`); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -268,7 +277,7 @@ func (p *Postgres) seedInitialData(ctx context.Context) error {
 	}{
 		{1, "Ekstra Tereyağı", 4000, "ING-BUTTER", 30},
 		{1, "Ekstra Kaşar", 4500, "ING-CHEESE", 40},
-		{1, "Yoğurtsuz", 0, "", 0},
+		{1, "Yoğurtsuz", 0, "ING-YOGURT", -80},
 		{2, "Acılı", 0, "", 0},
 		{2, "Soğansız", 0, "", 0},
 		{2, "Ekstra Kaşarlı", 3000, "ING-CHEESE", 30},
