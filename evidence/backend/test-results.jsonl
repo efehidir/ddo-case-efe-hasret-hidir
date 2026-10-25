@@ -1,0 +1,287 @@
+{"Time":"2026-10-25T22:08:09.171587757Z","Action":"start","Package":"github.com/efehidir/ddo/backend/cmd/api"}
+{"Time":"2026-10-25T22:08:09.171710781Z","Action":"start","Package":"github.com/efehidir/ddo/backend/cmd/simulator"}
+{"Time":"2026-10-25T22:08:09.171771496Z","Action":"start","Package":"github.com/efehidir/ddo/backend/cmd/verify"}
+{"Time":"2026-10-25T22:08:09.171824596Z","Action":"start","Package":"github.com/efehidir/ddo/backend/internal/auth"}
+{"Time":"2026-10-25T22:08:09.171935056Z","Action":"start","Package":"github.com/efehidir/ddo/backend/internal/config"}
+{"Time":"2026-10-25T22:08:09.171975673Z","Action":"start","Package":"github.com/efehidir/ddo/backend/internal/database"}
+{"Time":"2026-10-25T22:08:09.172030026Z","Action":"start","Package":"github.com/efehidir/ddo/backend/internal/demogate"}
+{"Time":"2026-10-25T22:08:09.172064862Z","Action":"start","Package":"github.com/efehidir/ddo/backend/internal/domain"}
+{"Time":"2026-10-25T22:08:09.172217131Z","Action":"start","Package":"github.com/efehidir/ddo/backend/internal/metrics"}
+{"Time":"2026-10-25T22:08:09.172284288Z","Action":"start","Package":"github.com/efehidir/ddo/backend/internal/openapi"}
+{"Time":"2026-10-25T22:08:09.184695016Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignFreeUnitsUseActualVariantPrices"}
+{"Time":"2026-10-25T22:08:09.184767193Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignFreeUnitsUseActualVariantPrices","Output":"=== RUN   TestCampaignFreeUnitsUseActualVariantPrices\n"}
+{"Time":"2026-10-25T22:08:09.185009203Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignFreeUnitsUseActualVariantPrices","Output":"--- PASS: TestCampaignFreeUnitsUseActualVariantPrices (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.185102079Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignFreeUnitsUseActualVariantPrices","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.185125333Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignCapMatchesExplanation"}
+{"Time":"2026-10-25T22:08:09.185131956Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignCapMatchesExplanation","Output":"=== RUN   TestCampaignCapMatchesExplanation\n"}
+{"Time":"2026-10-25T22:08:09.185267563Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignCapMatchesExplanation","Output":"--- PASS: TestCampaignCapMatchesExplanation (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.185289104Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignCapMatchesExplanation","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.185323039Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignOvernightWindow"}
+{"Time":"2026-10-25T22:08:09.185328219Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignOvernightWindow","Output":"=== RUN   TestCampaignOvernightWindow\n"}
+{"Time":"2026-10-25T22:08:09.185571219Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignOvernightWindow","Output":"--- PASS: TestCampaignOvernightWindow (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.18558234Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestCampaignOvernightWindow","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.18559794Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestDiscountAllocationLargeAmounts"}
+{"Time":"2026-10-25T22:08:09.185601858Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestDiscountAllocationLargeAmounts","Output":"=== RUN   TestDiscountAllocationLargeAmounts\n"}
+{"Time":"2026-10-25T22:08:09.185649257Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestHashAndVerifyPassword"}
+{"Time":"2026-10-25T22:08:09.185653696Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestHashAndVerifyPassword","Output":"=== RUN   TestHashAndVerifyPassword\n"}
+{"Time":"2026-10-25T22:08:09.185715393Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestDiscountAllocationLargeAmounts","Output":"--- PASS: TestDiscountAllocationLargeAmounts (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.185755419Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestDiscountAllocationLargeAmounts","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.185768443Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_EmptyLog"}
+{"Time":"2026-10-25T22:08:09.185773062Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_EmptyLog","Output":"=== RUN   TestT1_RebuildOrderStateFromEvents_EmptyLog\n"}
+{"Time":"2026-10-25T22:08:09.185870928Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_EmptyLog","Output":"--- PASS: TestT1_RebuildOrderStateFromEvents_EmptyLog (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.185888481Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_EmptyLog","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.185949377Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_FullLifecycle"}
+{"Time":"2026-10-25T22:08:09.185960288Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_FullLifecycle","Output":"=== RUN   TestT1_RebuildOrderStateFromEvents_FullLifecycle\n"}
+{"Time":"2026-10-25T22:08:09.18682047Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_FullLifecycle","Output":"--- PASS: TestT1_RebuildOrderStateFromEvents_FullLifecycle (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.186839186Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_FullLifecycle","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.186846049Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_FullyPaid"}
+{"Time":"2026-10-25T22:08:09.186850186Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_FullyPaid","Output":"=== RUN   TestT1_RebuildOrderStateFromEvents_FullyPaid\n"}
+{"Time":"2026-10-25T22:08:09.187044375Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_FullyPaid","Output":"--- PASS: TestT1_RebuildOrderStateFromEvents_FullyPaid (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.187072869Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_FullyPaid","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.187080343Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_ConcurrentWaiters_OptimisticLockingRaceProof"}
+{"Time":"2026-10-25T22:08:09.187085412Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_ConcurrentWaiters_OptimisticLockingRaceProof","Output":"=== RUN   TestT1_ConcurrentWaiters_OptimisticLockingRaceProof\n"}
+{"Time":"2026-10-25T22:08:09.188584768Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/demogate","Output":"\tgithub.com/efehidir/ddo/backend/internal/demogate\t\tcoverage: 0.0% of statements\n"}
+{"Time":"2026-10-25T22:08:09.18876012Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_ConcurrentWaiters_OptimisticLockingRaceProof","Output":"--- PASS: TestT1_ConcurrentWaiters_OptimisticLockingRaceProof (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.188782182Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_ConcurrentWaiters_OptimisticLockingRaceProof","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.188808823Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_AddItemDuringPayment_ConsistentRemaining"}
+{"Time":"2026-10-25T22:08:09.188813993Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_AddItemDuringPayment_ConsistentRemaining","Output":"=== RUN   TestT1_AddItemDuringPayment_ConsistentRemaining\n"}
+{"Time":"2026-10-25T22:08:09.188926546Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/openapi","Output":"\tgithub.com/efehidir/ddo/backend/internal/openapi\t\tcoverage: 0.0% of statements\n"}
+{"Time":"2026-10-25T22:08:09.188989415Z","Action":"output","Package":"github.com/efehidir/ddo/backend/cmd/simulator","Output":"\tgithub.com/efehidir/ddo/backend/cmd/simulator\t\tcoverage: 0.0% of statements\n"}
+{"Time":"2026-10-25T22:08:09.188996909Z","Action":"output","Package":"github.com/efehidir/ddo/backend/cmd/api","Output":"\tgithub.com/efehidir/ddo/backend/cmd/api\t\tcoverage: 0.0% of statements\n"}
+{"Time":"2026-10-25T22:08:09.189016877Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/database","Output":"\tgithub.com/efehidir/ddo/backend/internal/database\t\tcoverage: 0.0% of statements\n"}
+{"Time":"2026-10-25T22:08:09.189160329Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_AddItemDuringPayment_ConsistentRemaining","Output":"--- PASS: TestT1_AddItemDuringPayment_ConsistentRemaining (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.18917128Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_AddItemDuringPayment_ConsistentRemaining","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.189054108Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/config","Output":"\tgithub.com/efehidir/ddo/backend/internal/config\t\tcoverage: 0.0% of statements\n"}
+{"Time":"2026-10-25T22:08:09.189069728Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/metrics","Output":"\tgithub.com/efehidir/ddo/backend/internal/metrics\t\tcoverage: 0.0% of statements\n"}
+{"Time":"2026-10-25T22:08:09.189346863Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_ZeroKurusDrift_PrimeNumbers"}
+{"Time":"2026-10-25T22:08:09.189356582Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_ZeroKurusDrift_PrimeNumbers","Output":"=== RUN   TestT2_AllocateDiscountAcrossItems_ZeroKurusDrift_PrimeNumbers\n"}
+{"Time":"2026-10-25T22:08:09.189365989Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_ZeroKurusDrift_PrimeNumbers","Output":"--- PASS: TestT2_AllocateDiscountAcrossItems_ZeroKurusDrift_PrimeNumbers (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.189370748Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_ZeroKurusDrift_PrimeNumbers","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.189376018Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_WithCancelledItem"}
+{"Time":"2026-10-25T22:08:09.189379906Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_WithCancelledItem","Output":"=== RUN   TestT2_AllocateDiscountAcrossItems_WithCancelledItem\n"}
+{"Time":"2026-10-25T22:08:09.189448533Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_WithCancelledItem","Output":"--- PASS: TestT2_AllocateDiscountAcrossItems_WithCancelledItem (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.189473079Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_WithCancelledItem","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.189490703Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_NegativeError"}
+{"Time":"2026-10-25T22:08:09.189498047Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_NegativeError","Output":"=== RUN   TestT2_AllocateDiscountAcrossItems_NegativeError\n"}
+{"Time":"2026-10-25T22:08:09.189503176Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_NegativeError","Output":"--- PASS: TestT2_AllocateDiscountAcrossItems_NegativeError (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.189509478Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_NegativeError","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.18955063Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_ExactKurusConservation"}
+{"Time":"2026-10-25T22:08:09.189563404Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_ExactKurusConservation","Output":"=== RUN   TestT2_CalculateEqualSplit_ExactKurusConservation\n"}
+{"Time":"2026-10-25T22:08:09.189586187Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_ExactKurusConservation","Output":"--- PASS: TestT2_CalculateEqualSplit_ExactKurusConservation (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.189594153Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_ExactKurusConservation","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.18961559Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_InvalidInputs"}
+{"Time":"2026-10-25T22:08:09.189622683Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_InvalidInputs","Output":"=== RUN   TestT2_CalculateEqualSplit_InvalidInputs\n"}
+{"Time":"2026-10-25T22:08:09.189652169Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_InvalidInputs","Output":"--- PASS: TestT2_CalculateEqualSplit_InvalidInputs (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.189678562Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_InvalidInputs","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.189703991Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit"}
+{"Time":"2026-10-25T22:08:09.189713108Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit","Output":"=== RUN   TestT2_CalculateItemSplit\n"}
+{"Time":"2026-10-25T22:08:09.189741512Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit","Output":"--- PASS: TestT2_CalculateItemSplit (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.189751321Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.189756029Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_ReconcileZReport_ExactMatch"}
+{"Time":"2026-10-25T22:08:09.189763454Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_ReconcileZReport_ExactMatch","Output":"=== RUN   TestT2_ReconcileZReport_ExactMatch\n"}
+{"Time":"2026-10-25T22:08:09.189801025Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_ReconcileZReport_ExactMatch","Output":"--- PASS: TestT2_ReconcileZReport_ExactMatch (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.189828748Z","Action":"output","Package":"github.com/efehidir/ddo/backend/cmd/verify","Output":"\tgithub.com/efehidir/ddo/backend/cmd/verify\t\tcoverage: 0.0% of statements\n"}
+{"Time":"2026-10-25T22:08:09.189834458Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_ReconcileZReport_ExactMatch","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.189945089Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_EnrichAndSortKDSItems_CourseAndDelayOrdering"}
+{"Time":"2026-10-25T22:08:09.189953575Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_EnrichAndSortKDSItems_CourseAndDelayOrdering","Output":"=== RUN   TestT3_EnrichAndSortKDSItems_CourseAndDelayOrdering\n"}
+{"Time":"2026-10-25T22:08:09.189962552Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_EnrichAndSortKDSItems_CourseAndDelayOrdering","Output":"--- PASS: TestT3_EnrichAndSortKDSItems_CourseAndDelayOrdering (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.189967291Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_EnrichAndSortKDSItems_CourseAndDelayOrdering","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.18997194Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_PubSubAndDisconnectReplay"}
+{"Time":"2026-10-25T22:08:09.189976458Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_PubSubAndDisconnectReplay","Output":"=== RUN   TestT3_KDSBroker_PubSubAndDisconnectReplay\n"}
+{"Time":"2026-10-25T22:08:09.190220672Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_PubSubAndDisconnectReplay","Output":"--- PASS: TestT3_KDSBroker_PubSubAndDisconnectReplay (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.190239968Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_PubSubAndDisconnectReplay","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.190247633Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_WithSubRecipeVariantAndModifiers"}
+{"Time":"2026-10-25T22:08:09.190252262Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_WithSubRecipeVariantAndModifiers","Output":"=== RUN   TestT4_ResolveRecipeTree_WithSubRecipeVariantAndModifiers\n"}
+{"Time":"2026-10-25T22:08:09.190386005Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_WithSubRecipeVariantAndModifiers","Output":"--- PASS: TestT4_ResolveRecipeTree_WithSubRecipeVariantAndModifiers (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.190398218Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_WithSubRecipeVariantAndModifiers","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.190405332Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ComputeStockVarianceReport"}
+{"Time":"2026-10-25T22:08:09.190410341Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ComputeStockVarianceReport","Output":"=== RUN   TestT4_ComputeStockVarianceReport\n"}
+{"Time":"2026-10-25T22:08:09.190417866Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ComputeStockVarianceReport","Output":"--- PASS: TestT4_ComputeStockVarianceReport (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.190422895Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ComputeStockVarianceReport","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.190427864Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_StackableWinsOverExclusive"}
+{"Time":"2026-10-25T22:08:09.190432133Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_StackableWinsOverExclusive","Output":"=== RUN   TestT5_EvaluateBestCampaigns_StackableWinsOverExclusive\n"}
+{"Time":"2026-10-25T22:08:09.190919848Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_StackableWinsOverExclusive","Output":"--- PASS: TestT5_EvaluateBestCampaigns_StackableWinsOverExclusive (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.190935257Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_StackableWinsOverExclusive","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.19095279Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_ExclusiveVIPWinsWhenBetter"}
+{"Time":"2026-10-25T22:08:09.190957309Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_ExclusiveVIPWinsWhenBetter","Output":"=== RUN   TestT5_EvaluateBestCampaigns_ExclusiveVIPWinsWhenBetter\n"}
+{"Time":"2026-10-25T22:08:09.191138242Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_ExclusiveVIPWinsWhenBetter","Output":"--- PASS: TestT5_EvaluateBestCampaigns_ExclusiveVIPWinsWhenBetter (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.191155615Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_ExclusiveVIPWinsWhenBetter","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.19238104Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/cmd/simulator","Elapsed":0.021}
+{"Time":"2026-10-25T22:08:09.192379607Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_CouponBelowMinimum"}
+{"Time":"2026-10-25T22:08:09.192415796Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_CouponBelowMinimum","Output":"=== RUN   TestT5_EvaluateBestCampaigns_CouponBelowMinimum\n"}
+{"Time":"2026-10-25T22:08:09.192424322Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_CouponBelowMinimum","Output":"--- PASS: TestT5_EvaluateBestCampaigns_CouponBelowMinimum (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192429983Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_CouponBelowMinimum","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192435734Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_InactiveCouponAndEmptyBasket"}
+{"Time":"2026-10-25T22:08:09.192440232Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_InactiveCouponAndEmptyBasket","Output":"=== RUN   TestT5_EvaluateBestCampaigns_InactiveCouponAndEmptyBasket\n"}
+{"Time":"2026-10-25T22:08:09.192449049Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_InactiveCouponAndEmptyBasket","Output":"--- PASS: TestT5_EvaluateBestCampaigns_InactiveCouponAndEmptyBasket (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192453908Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_InactiveCouponAndEmptyBasket","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192453458Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/database","Elapsed":0.02}
+{"Time":"2026-10-25T22:08:09.192459188Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_HappyHourOutsideWindow"}
+{"Time":"2026-10-25T22:08:09.192464669Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_HappyHourOutsideWindow","Output":"=== RUN   TestT5_EvaluateBestCampaigns_HappyHourOutsideWindow\n"}
+{"Time":"2026-10-25T22:08:09.192470189Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_HappyHourOutsideWindow","Output":"--- PASS: TestT5_EvaluateBestCampaigns_HappyHourOutsideWindow (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192481921Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_HappyHourOutsideWindow","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192486189Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_InvalidQuantity"}
+{"Time":"2026-10-25T22:08:09.192489476Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_InvalidQuantity","Output":"=== RUN   TestT4_ResolveRecipeTree_InvalidQuantity\n"}
+{"Time":"2026-10-25T22:08:09.192495197Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_InvalidQuantity","Output":"--- PASS: TestT4_ResolveRecipeTree_InvalidQuantity (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192498823Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_InvalidQuantity","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.19250202Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_DefaultMultiplier"}
+{"Time":"2026-10-25T22:08:09.192504975Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_DefaultMultiplier","Output":"=== RUN   TestT4_ResolveRecipeTree_DefaultMultiplier\n"}
+{"Time":"2026-10-25T22:08:09.192508562Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_DefaultMultiplier","Output":"--- PASS: TestT4_ResolveRecipeTree_DefaultMultiplier (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.19250733Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/config","Elapsed":0.021}
+{"Time":"2026-10-25T22:08:09.192512189Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_DefaultMultiplier","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192521116Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ComputeStockVarianceReport_Surplus"}
+{"Time":"2026-10-25T22:08:09.192525004Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ComputeStockVarianceReport_Surplus","Output":"=== RUN   TestT4_ComputeStockVarianceReport_Surplus\n"}
+{"Time":"2026-10-25T22:08:09.192531756Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ComputeStockVarianceReport_Surplus","Output":"--- PASS: TestT4_ComputeStockVarianceReport_Surplus (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192536055Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ComputeStockVarianceReport_Surplus","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192540243Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_RingBufferEviction"}
+{"Time":"2026-10-25T22:08:09.192543499Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_RingBufferEviction","Output":"=== RUN   TestT3_KDSBroker_RingBufferEviction\n"}
+{"Time":"2026-10-25T22:08:09.192547707Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_RingBufferEviction","Output":"--- PASS: TestT3_KDSBroker_RingBufferEviction (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192551143Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_RingBufferEviction","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.19255452Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_CappedAtSubtotal"}
+{"Time":"2026-10-25T22:08:09.192559519Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_CappedAtSubtotal","Output":"=== RUN   TestT2_AllocateDiscountAcrossItems_CappedAtSubtotal\n"}
+{"Time":"2026-10-25T22:08:09.192569708Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_CappedAtSubtotal","Output":"--- PASS: TestT2_AllocateDiscountAcrossItems_CappedAtSubtotal (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192573796Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_AllocateDiscountAcrossItems_CappedAtSubtotal","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192577233Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit_EmptySelection"}
+{"Time":"2026-10-25T22:08:09.192580248Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit_EmptySelection","Output":"=== RUN   TestT2_CalculateItemSplit_EmptySelection\n"}
+{"Time":"2026-10-25T22:08:09.192584006Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit_EmptySelection","Output":"--- PASS: TestT2_CalculateItemSplit_EmptySelection (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192587332Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit_EmptySelection","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192558948Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/metrics","Elapsed":0.02}
+{"Time":"2026-10-25T22:08:09.192590588Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit_DuplicateIDsIgnored"}
+{"Time":"2026-10-25T22:08:09.192611437Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit_DuplicateIDsIgnored","Output":"=== RUN   TestT2_CalculateItemSplit_DuplicateIDsIgnored\n"}
+{"Time":"2026-10-25T22:08:09.19263381Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit_DuplicateIDsIgnored","Output":"--- PASS: TestT2_CalculateItemSplit_DuplicateIDsIgnored (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192638228Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateItemSplit_DuplicateIDsIgnored","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192640763Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/demogate","Elapsed":0.021}
+{"Time":"2026-10-25T22:08:09.192642426Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_InvalidJSONPayloads"}
+{"Time":"2026-10-25T22:08:09.192619473Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/openapi","Elapsed":0.02}
+{"Time":"2026-10-25T22:08:09.192648267Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_InvalidJSONPayloads","Output":"=== RUN   TestT1_RebuildOrderStateFromEvents_InvalidJSONPayloads\n"}
+{"Time":"2026-10-25T22:08:09.192659058Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_InvalidJSONPayloads","Output":"--- PASS: TestT1_RebuildOrderStateFromEvents_InvalidJSONPayloads (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192663085Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT1_RebuildOrderStateFromEvents_InvalidJSONPayloads","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192666702Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_SevenWaysPrimeAmount"}
+{"Time":"2026-10-25T22:08:09.192669908Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_SevenWaysPrimeAmount","Output":"=== RUN   TestT2_CalculateEqualSplit_SevenWaysPrimeAmount\n"}
+{"Time":"2026-10-25T22:08:09.192673736Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_SevenWaysPrimeAmount","Output":"--- PASS: TestT2_CalculateEqualSplit_SevenWaysPrimeAmount (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192683965Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_CalculateEqualSplit_SevenWaysPrimeAmount","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192687542Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_ReconcileZReport_DetectImbalance"}
+{"Time":"2026-10-25T22:08:09.192690598Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_ReconcileZReport_DetectImbalance","Output":"=== RUN   TestT2_ReconcileZReport_DetectImbalance\n"}
+{"Time":"2026-10-25T22:08:09.192694335Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_ReconcileZReport_DetectImbalance","Output":"--- PASS: TestT2_ReconcileZReport_DetectImbalance (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192699104Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT2_ReconcileZReport_DetectImbalance","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192702741Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_DefaultCapacity"}
+{"Time":"2026-10-25T22:08:09.192706378Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_DefaultCapacity","Output":"=== RUN   TestT3_KDSBroker_DefaultCapacity\n"}
+{"Time":"2026-10-25T22:08:09.192596289Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/cmd/api","Elapsed":0.021}
+{"Time":"2026-10-25T22:08:09.192852845Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_DefaultCapacity","Output":"--- PASS: TestT3_KDSBroker_DefaultCapacity (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192866521Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT3_KDSBroker_DefaultCapacity","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192878775Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_MultipleItemsAndModifiers"}
+{"Time":"2026-10-25T22:08:09.192884305Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_MultipleItemsAndModifiers","Output":"=== RUN   TestT4_ResolveRecipeTree_MultipleItemsAndModifiers\n"}
+{"Time":"2026-10-25T22:08:09.192945511Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_MultipleItemsAndModifiers","Output":"--- PASS: TestT4_ResolveRecipeTree_MultipleItemsAndModifiers (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.192955751Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT4_ResolveRecipeTree_MultipleItemsAndModifiers","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.192971911Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_PercentageCouponCappedAtMax"}
+{"Time":"2026-10-25T22:08:09.192975288Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_PercentageCouponCappedAtMax","Output":"=== RUN   TestT5_EvaluateBestCampaigns_PercentageCouponCappedAtMax\n"}
+{"Time":"2026-10-25T22:08:09.193070525Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_PercentageCouponCappedAtMax","Output":"--- PASS: TestT5_EvaluateBestCampaigns_PercentageCouponCappedAtMax (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.193083309Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestT5_EvaluateBestCampaigns_PercentageCouponCappedAtMax","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.193089982Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestPaymentAllocationAfterPartialPayment"}
+{"Time":"2026-10-25T22:08:09.193093489Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestPaymentAllocationAfterPartialPayment","Output":"=== RUN   TestPaymentAllocationAfterPartialPayment\n"}
+{"Time":"2026-10-25T22:08:09.193185998Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestPaymentAllocationAfterPartialPayment","Output":"--- PASS: TestPaymentAllocationAfterPartialPayment (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.193193392Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestPaymentAllocationAfterPartialPayment","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.193210494Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestMergedSourceRebuild"}
+{"Time":"2026-10-25T22:08:09.193214772Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestMergedSourceRebuild","Output":"=== RUN   TestMergedSourceRebuild\n"}
+{"Time":"2026-10-25T22:08:09.193411856Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestMergedSourceRebuild","Output":"--- PASS: TestMergedSourceRebuild (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.193438156Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestMergedSourceRebuild","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.193459757Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestNestedRecipePreservesEveryGram"}
+{"Time":"2026-10-25T22:08:09.193464236Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestNestedRecipePreservesEveryGram","Output":"=== RUN   TestNestedRecipePreservesEveryGram\n"}
+{"Time":"2026-10-25T22:08:09.193570648Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestNestedRecipePreservesEveryGram","Output":"--- PASS: TestNestedRecipePreservesEveryGram (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.193595435Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestNestedRecipePreservesEveryGram","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.193601897Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestRecipeCycleRejected"}
+{"Time":"2026-10-25T22:08:09.193606716Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestRecipeCycleRejected","Output":"=== RUN   TestRecipeCycleRejected\n"}
+{"Time":"2026-10-25T22:08:09.193712707Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestRecipeCycleRejected","Output":"--- PASS: TestRecipeCycleRejected (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.193741572Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestRecipeCycleRejected","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.193787118Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestRemovalModifierScalesWithVariant"}
+{"Time":"2026-10-25T22:08:09.193794573Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestRemovalModifierScalesWithVariant","Output":"=== RUN   TestRemovalModifierScalesWithVariant\n"}
+{"Time":"2026-10-25T22:08:09.193858624Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestRemovalModifierScalesWithVariant","Output":"--- PASS: TestRemovalModifierScalesWithVariant (0.00s)\n"}
+{"Time":"2026-10-25T22:08:09.193868553Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Test":"TestRemovalModifierScalesWithVariant","Elapsed":0}
+{"Time":"2026-10-25T22:08:09.193902487Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Output":"PASS\n"}
+{"Time":"2026-10-25T22:08:09.194173081Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/cmd/verify","Elapsed":0.022}
+{"Time":"2026-10-25T22:08:09.196789455Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Output":"coverage: 96.1% of statements\n"}
+{"Time":"2026-10-25T22:08:10.204878641Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/domain","Output":"ok  \tgithub.com/efehidir/ddo/backend/internal/domain\t1.032s\tcoverage: 96.1% of statements\n"}
+{"Time":"2026-10-25T22:08:10.204936751Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/domain","Elapsed":1.033}
+{"Time":"2026-10-25T22:08:10.640789483Z","Action":"start","Package":"github.com/efehidir/ddo/backend/internal/server"}
+{"Time":"2026-10-25T22:08:10.661170593Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess"}
+{"Time":"2026-10-25T22:08:10.661325146Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess","Output":"=== RUN   TestBranchAccess\n"}
+{"Time":"2026-10-25T22:08:10.661381523Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/waiter"}
+{"Time":"2026-10-25T22:08:10.661388947Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/waiter","Output":"=== RUN   TestBranchAccess/waiter\n"}
+{"Time":"2026-10-25T22:08:10.661398576Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/waiter","Output":"--- PASS: TestBranchAccess/waiter (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.661402072Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/waiter","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.661409607Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/cashier"}
+{"Time":"2026-10-25T22:08:10.661413013Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/cashier","Output":"=== RUN   TestBranchAccess/cashier\n"}
+{"Time":"2026-10-25T22:08:10.66149264Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/cashier","Output":"--- PASS: TestBranchAccess/cashier (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.661518279Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/cashier","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.66152927Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/chef"}
+{"Time":"2026-10-25T22:08:10.661534119Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/chef","Output":"=== RUN   TestBranchAccess/chef\n"}
+{"Time":"2026-10-25T22:08:10.66153982Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/chef","Output":"--- PASS: TestBranchAccess/chef (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.661551822Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/chef","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.661567011Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/branch_manager"}
+{"Time":"2026-10-25T22:08:10.66157165Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/branch_manager","Output":"=== RUN   TestBranchAccess/branch_manager\n"}
+{"Time":"2026-10-25T22:08:10.661637329Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/branch_manager","Output":"--- PASS: TestBranchAccess/branch_manager (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.661645344Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/branch_manager","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.661650383Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/hq_manager"}
+{"Time":"2026-10-25T22:08:10.661653389Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/hq_manager","Output":"=== RUN   TestBranchAccess/hq_manager\n"}
+{"Time":"2026-10-25T22:08:10.661715978Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/hq_manager","Output":"--- PASS: TestBranchAccess/hq_manager (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.661748349Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/hq_manager","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.66175926Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/customer"}
+{"Time":"2026-10-25T22:08:10.661764339Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/customer","Output":"=== RUN   TestBranchAccess/customer\n"}
+{"Time":"2026-10-25T22:08:10.661771493Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/customer","Output":"--- PASS: TestBranchAccess/customer (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.661781752Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess/customer","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.661802221Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess","Output":"--- PASS: TestBranchAccess (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.661813122Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestBranchAccess","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.661830465Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestIdempotencyIdentityScope"}
+{"Time":"2026-10-25T22:08:10.661834993Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestIdempotencyIdentityScope","Output":"=== RUN   TestIdempotencyIdentityScope\n"}
+{"Time":"2026-10-25T22:08:10.661945814Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestIdempotencyIdentityScope","Output":"--- PASS: TestIdempotencyIdentityScope (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.661953829Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestIdempotencyIdentityScope","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.661958348Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHealthEndpoint_HealthyAndHeader"}
+{"Time":"2026-10-25T22:08:10.661961333Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHealthEndpoint_HealthyAndHeader","Output":"=== RUN   TestHealthEndpoint_HealthyAndHeader\n"}
+{"Time":"2026-10-25T22:08:10.666353467Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHealthEndpoint_HealthyAndHeader","Output":"--- PASS: TestHealthEndpoint_HealthyAndHeader (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.666403672Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHealthEndpoint_HealthyAndHeader","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.666414162Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHzCC64Endpoint"}
+{"Time":"2026-10-25T22:08:10.666420584Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHzCC64Endpoint","Output":"=== RUN   TestHzCC64Endpoint\n"}
+{"Time":"2026-10-25T22:08:10.671830619Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHzCC64Endpoint","Output":"--- PASS: TestHzCC64Endpoint (0.01s)\n"}
+{"Time":"2026-10-25T22:08:10.67186284Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHzCC64Endpoint","Elapsed":0.01}
+{"Time":"2026-10-25T22:08:10.671870424Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHealthEndpoint_Degraded"}
+{"Time":"2026-10-25T22:08:10.67187363Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHealthEndpoint_Degraded","Output":"=== RUN   TestHealthEndpoint_Degraded\n"}
+{"Time":"2026-10-25T22:08:10.674047636Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHealthEndpoint_Degraded","Output":"--- PASS: TestHealthEndpoint_Degraded (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.674079176Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestHealthEndpoint_Degraded","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.674086449Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestDatabaseCheckEndpoint"}
+{"Time":"2026-10-25T22:08:10.674091088Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestDatabaseCheckEndpoint","Output":"=== RUN   TestDatabaseCheckEndpoint\n"}
+{"Time":"2026-10-25T22:08:10.678009303Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestDatabaseCheckEndpoint","Output":"--- PASS: TestDatabaseCheckEndpoint (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.67804448Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestDatabaseCheckEndpoint","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.6780498Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestDemoAccountsAndRBACProtection"}
+{"Time":"2026-10-25T22:08:10.678053617Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestDemoAccountsAndRBACProtection","Output":"=== RUN   TestDemoAccountsAndRBACProtection\n"}
+{"Time":"2026-10-25T22:08:10.682064307Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestDemoAccountsAndRBACProtection","Output":"--- PASS: TestDemoAccountsAndRBACProtection (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.682088423Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestDemoAccountsAndRBACProtection","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.682095897Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestMetricsAndOpenAPIEndpoints"}
+{"Time":"2026-10-25T22:08:10.682099604Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestMetricsAndOpenAPIEndpoints","Output":"=== RUN   TestMetricsAndOpenAPIEndpoints\n"}
+{"Time":"2026-10-25T22:08:10.691075695Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestMetricsAndOpenAPIEndpoints","Output":"--- PASS: TestMetricsAndOpenAPIEndpoints (0.01s)\n"}
+{"Time":"2026-10-25T22:08:10.691151469Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Test":"TestMetricsAndOpenAPIEndpoints","Elapsed":0.01}
+{"Time":"2026-10-25T22:08:10.691166447Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Output":"PASS\n"}
+{"Time":"2026-10-25T22:08:10.693864797Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Output":"coverage: 5.4% of statements\n"}
+{"Time":"2026-10-25T22:08:10.761007987Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestHashAndVerifyPassword","Output":"--- PASS: TestHashAndVerifyPassword (1.58s)\n"}
+{"Time":"2026-10-25T22:08:10.761058543Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestHashAndVerifyPassword","Elapsed":1.58}
+{"Time":"2026-10-25T22:08:10.761071677Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestHashPassword_TooShort"}
+{"Time":"2026-10-25T22:08:10.761076697Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestHashPassword_TooShort","Output":"=== RUN   TestHashPassword_TooShort\n"}
+{"Time":"2026-10-25T22:08:10.761170104Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestHashPassword_TooShort","Output":"--- PASS: TestHashPassword_TooShort (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.761186335Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestHashPassword_TooShort","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.761195423Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestGenerateAndVerifyTokenPair"}
+{"Time":"2026-10-25T22:08:10.761200352Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestGenerateAndVerifyTokenPair","Output":"=== RUN   TestGenerateAndVerifyTokenPair\n"}
+{"Time":"2026-10-25T22:08:10.761730768Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestGenerateAndVerifyTokenPair","Output":"--- PASS: TestGenerateAndVerifyTokenPair (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.761741649Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestGenerateAndVerifyTokenPair","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.761747229Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestVerifyJWT_TamperedOrExpired"}
+{"Time":"2026-10-25T22:08:10.761751608Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestVerifyJWT_TamperedOrExpired","Output":"=== RUN   TestVerifyJWT_TamperedOrExpired\n"}
+{"Time":"2026-10-25T22:08:10.762003285Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestVerifyJWT_TamperedOrExpired","Output":"--- PASS: TestVerifyJWT_TamperedOrExpired (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.762008475Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestVerifyJWT_TamperedOrExpired","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.762011922Z","Action":"run","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestRBACMiddleware_401And403And200"}
+{"Time":"2026-10-25T22:08:10.762027571Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestRBACMiddleware_401And403And200","Output":"=== RUN   TestRBACMiddleware_401And403And200\n"}
+{"Time":"2026-10-25T22:08:10.764130762Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestRBACMiddleware_401And403And200","Output":"--- PASS: TestRBACMiddleware_401And403And200 (0.00s)\n"}
+{"Time":"2026-10-25T22:08:10.764150369Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/auth","Test":"TestRBACMiddleware_401And403And200","Elapsed":0}
+{"Time":"2026-10-25T22:08:10.764154387Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Output":"PASS\n"}
+{"Time":"2026-10-25T22:08:10.765643192Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Output":"coverage: 87.8% of statements\n"}
+{"Time":"2026-10-25T22:08:11.71044275Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/server","Output":"ok  \tgithub.com/efehidir/ddo/backend/internal/server\t1.068s\tcoverage: 5.4% of statements\n"}
+{"Time":"2026-10-25T22:08:11.710492996Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/server","Elapsed":1.07}
+{"Time":"2026-10-25T22:08:11.770889043Z","Action":"output","Package":"github.com/efehidir/ddo/backend/internal/auth","Output":"ok  \tgithub.com/efehidir/ddo/backend/internal/auth\t2.598s\tcoverage: 87.8% of statements\n"}
+{"Time":"2026-10-25T22:08:11.770978562Z","Action":"pass","Package":"github.com/efehidir/ddo/backend/internal/auth","Elapsed":2.599}

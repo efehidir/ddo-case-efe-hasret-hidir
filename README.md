@@ -1,148 +1,136 @@
-# SofraPOS — Çok Şubeli Restoran Sipariş, Mutfak (KDS), Stok ve Kasa Sistemi
+# SofraPOS
 
-**SofraPOS**, 8 şubeli bir restoran zincirinin garson siparişi, gerçek zamanlı mutfak ekranı (KDS), reçete/yarı mamul bazlı stok-fire takibi, kampanya optimizasyonu, hesap bölüşme ve vardiya Z raporu süreçlerini kuruşu kuruşuna yöneten üç katmanlı (**Go 1.22+ Fiber**, **PostgreSQL 16 `pgx/v5`**, **Svelte 5 / SvelteKit Node**) referans sistemdir.
+**Geliştiren: Efe Hasret Hıdır**
 
----
+Sekiz şubeli restoran için sipariş, mutfak, kasa, reçete bazlı stok ve raporlama uygulaması. Gereksinimler [proje.md](proje.md), düzeltmeler [REQUIREMENTS.md](REQUIREMENTS.md) içinde izlenebilir.
 
-## 1. Hızlı Başlangıç (Tek Komutla Çalıştırma)
+## Kurulum
+
+Docker Engine/Desktop ve Compose v2 gerekir. PowerShell'de ilk satır için `Copy-Item .env.example .env` kullanılabilir.
 
 ```bash
 cp .env.example .env
-docker compose up --build
-```
-
-- **Frontend (SvelteKit SSR/SPA):** `http://localhost:3000`
-- **Backend API (Go + Fiber):** `http://localhost:8080`
-- **Swagger UI (OpenAPI 3.0):** `http://localhost:8080/docs`
-- **Prometheus Metrikleri:** `http://localhost:8080/metrics`
-- **Sağlık Uçları:** `http://localhost:8080/health` ve `http://localhost:8080/_hz/cc64`
-- **Veritabanı (`postgres:16-alpine`):** Host makineye açılmaz (`expose: 5432`), yalnızca `ddo_internal` Compose ağından erişilir; tüm tablolar `"dz-"` önekiyle başlar ve kullanıcı tablosu `"dz-sk-users"` olarak adlandırılmıştır.
-- **Veri Üretici (`simulator`):** Otomatik başlar, deterministik tohum (`SIMULATOR_SEED=42`) ile 8 şubede akşam yoğunluğu sipariş, KDS, iptal (fire) ve masa taşıma akışı üretir.
-
----
-
-## 2. Tek Komutla Uçtan Uca Doğrulama (`make verify`)
-
-Tüm kapsam maddelerini (`F-1`..`F-7`), 5 zorlu çekirdek görevi (`T-1`..`T-5`), sağlık ve RBAC kontrollerini canlı sistem üzerinde uçtan uca doğrulamak için:
-
-```bash
-make verify
-# veya doğrudan:
+docker compose up -d --build --wait
 docker compose --profile verify run --rm verify
 ```
 
-Verileri ilk deterministik seed haline sıfırlamak için:
+Migrasyon ve seed API açılışında otomatik, tek transaction içinde uygulanır. Simülatör ayrı servistir. PostgreSQL 16 yalnızca Compose ağında erişilir. Servisler root olmayan kullanıcılarla çalışır; API/frontend imajları çok aşamalıdır. Boş Docker önbelleğiyle beş dakika sınırı ayrıca ölçülmedi.
+
+| Adres | İşlev |
+|---|---|
+| [localhost:3000](http://localhost:3000) | Mobil operasyon ekranı |
+| [localhost:8080/health](http://localhost:8080/health) | PostgreSQL dahil sağlık; kesintide 503 |
+| [localhost:8080/_hz/cc64](http://localhost:8080/_hz/cc64) | Proje sağlık ucu, 200 |
+| [localhost:8080/docs](http://localhost:8080/docs) | Swagger UI; varlıkları CDN'den yüklenir |
+| [localhost:8080/openapi.json](http://localhost:8080/openapi.json) | 40 yol / 41 işlem için OpenAPI |
+| [localhost:8080/metrics](http://localhost:8080/metrics) | Prometheus HTTP, Go ve veritabanı metrikleri |
+
+`make up` ve `make verify` aynı işlemleri kolaylaştırır. Make/shell betikleri Linux, macOS veya Git Bash'te çalışır. Elle API denemeleri için [requests.http](requests.http) bulunur.
 
 ```bash
-make reset-demo
+make reset-demo  # Simülatörü durdurur, ilk seed'i oluşturur; simülatör kapalı kalır.
+make demo-live   # Sekiz şubeli canlı akışı başlatır.
+make down        # Servisleri durdurur, veritabanı volume'unu korur.
 ```
 
-Detaylı doğrulama tablosu ve görev kanıt komutları için **[`TESTING.md`](TESTING.md)** ve **[`requests.http`](requests.http)** dosyalarına bakabilirsiniz.
+Doğrulayıcı demo verisini sıfırlar. Simülatörle paylaşılan PostgreSQL oturum kilidi sayesinde doğrulama boyunca veri üretimi bekler, sonunda devam eder. Elle denemede sabit başlangıç için önce `make reset-demo` kullanın.
 
----
+## Demo hesapları
 
-## 3. Örnek Kullanıcı Hesapları (`"dz-sk-users"`)
+Tüm hesapların parolası **`Sofra2026!`**; veritabanında bcrypt özeti tutulur. Rol düğmeleri gerçek giriş yapar. Personel şube 1'e bağlıdır; yalnız merkez sekiz şubeyi seçebilir. Şube sınırı sunucuda da uygulanır.
 
-Migrasyon ve seed işlemleri konteyner başlangıcında otomatik çalışır. Tüm demo hesaplarının parolası **`Sofra2026!`** (bcrypt ile özetlenmiş) olarak tanımlanmıştır:
+| Rol | E-posta | Erişim |
+|---|---|---|
+| İlk seed / merkez | `seed.ceylan@ddo-case.invalid` | Tüm şubeler ve merkez işlemleri |
+| Garson | `garson@sofrapos.local` | Masa, adisyon, taşıma, birleştirme, KDS izleme |
+| Kasiyer | `kasiyer@sofrapos.local` | Adisyon, kampanya, ödeme, vardiya, Z raporu |
+| Aşçı | `asci@sofrapos.local` | KDS durum geçişleri, stok izleme |
+| Şube müdürü | `mudur@sofrapos.local` | Şube operasyonları, sayım, menü ekleme, denetim |
+| Merkez | `merkez@sofrapos.local` | Tüm operasyonlar, merkez raporu, tanılama, sıfırlama |
+| Müşteri | `musteri@sofrapos.local` | QR menü; adisyona yazamaz |
 
-| Rol | E-posta | Parola | Açıklama |
-|---|---|---|---|
-| **Seed Yönetici (`hq_manager`)** | `seed.ceylan@ddo-case.invalid` | `Sofra2026!` | İlk seed kullanıcısı (Merkez yönetim yetkili) |
-| **Garson (`waiter`)** | `garson@sofrapos.local` | `Sofra2026!` | Masa açma, kalem ekleme, taşıma, birleştirme, iptal |
-| **Kasiyer (`cashier`)** | `kasiyer@sofrapos.local` | `Sofra2026!` | Kampanya/kupon, hesap bölüşme, nakit/kart/karışık ödeme, Z raporu |
-| **Aşçı (`chef`)** | `asci@sofrapos.local` | `Sofra2026!` | Gerçek zamanlı KDS ekranı (Soğuk/Sıcak/Bar) ve SSE olay telafisi |
-| **Şube Müdürü (`branch_manager`)** | `mudur@sofrapos.local` | `Sofra2026!` | Reçete/yarı mamul stok, fire, gün sonu sayım farkı, Z raporu |
-| **Merkez Yönetim (`hq_manager`)** | `merkez@sofrapos.local` | `Sofra2026!` | 8 şube canlı performans raporu ve append-only denetim günlüğü |
-| **Müşteri (`customer`)** | `musteri@sofrapos.local` | `Sofra2026!` | Dijital QR menü, varyant ve ek seçenekler |
+## Mimari ve iş kuralları
 
----
+Go 1.23 / Fiber, pgx/v5 ve PostgreSQL 16; frontend'de Svelte 5 / SvelteKit 3, TypeScript ve **Tailwind CSS 4** kullanılır. Svelte rol/canlı veri değişimini az istemci koduyla yönetir; Tailwind ortak boşluk, odak, hata ve mobil yerleşim kuralları sağlar. Ayrıntılar [DECISIONS.md](DECISIONS.md) içindedir.
 
-## 4. Zorlu Çekirdek Görevler ve Çözüm Özeti
+- **Tutarlılık:** Mutasyon, olay, stok, denetim ve idempotans yanıtı aynı transaction'da commit edilir. Şube kilidi yazmaları sıralar; `FOR UPDATE` ve isteğe bağlı `expected_version` eski istemciyi 409 ile reddeder. Adisyon olaylardan yeniden kurulabilir. Ayrıntı/rebuild/KDS/stok okumaları aynı `REPEATABLE READ` anlık görüntüsünü kullanır.
+- **İdempotans:** Kritik yazmalarda anahtar kullanıcı + metot + yol kapsamındadır. Aynı gövde tekrarında aynı yanıt, farklı gövdede 409 döner. Frontend ağ hatasında aynı anahtarı korur ve yinelenen tıklamayı engeller.
+- **Kasa:** Para `int64`/`BIGINT` kuruştur. İndirim en büyük kalan yöntemiyle dağıtılır. Eşit, kalem, özel tutar, kısmi ve nakit/kart karışık ödeme desteklenir. Ödeme kalem bakiyelerine de işlenir. Tahsilat sonrası kampanya ve iptal kilitlenir; yeni kalem mevcut indirimi korur. Tam ödenen adisyona ekleme yapılamaz.
+- **Stok:** Alt reçeteler döngü kontrolüyle hammaddelere açılır; varyant/modifier gramajları uygulanır. Tüketim kalem bazında kaydedilir. Üretim öncesi iptal aynı gramları iade eder; üretilmiş iptal tüketimi fire yapar, ikinci stok düşümü oluşturmaz. Sayım yalnızca girilen hammaddeleri değiştirir.
+- **Mutfak:** Soğuk/sıcak/bar, kurs, hazırlık hedefi ve gecikme görünür. Durum sırası `PENDING → PREPARING → READY → SERVED` olur. SSE olayları kalıcıdır; 200'lük partiler sonuna kadar okunur. `Last-Event-ID` sorgu imlecine üstündür. İstemci 25 saniyelik yenilemelerde olayları geri alır.
+- **Kampanya:** X al Y öde, kombo, saatlik ve kupon kuralları; gerçek varyant fiyatı, öncelik ve birlikte kullanım kurallarıyla değerlendirilir. En iyi izinli paket ve tekil seçenekler karşılaştırılır, nedenleri gösterilir. Sunucunun İstanbul saati kullanılır. Ödeme öncesi sepet değişirse indirim temizlenir, yeniden uygulanmalıdır.
+- **Vardiya:** Şube başına tek açık vardiya; kapandıktan sonra yenisi açıkça açılır. Z raporu istenen/son vardiyayı tek SQL anlık görüntüsünde okur. Nakit bahşiş beklenen kasaya dahildir. Merkez raporu yaşam boyu şube toplamlarını gösterir.
+- **Güvenlik:** Access/refresh JWT, rol/şube denetimi, iş hatalarında ortak hata biçimi, keyset sayfalama, kim/eski/yeni değerlerle append-only denetim kaydı bulunur. HTTP zaman aşımı, düzgün kapanış ve JSON log kullanılır; parola/token loglanmaz. Tablolar `dz-` öneklidir; kullanıcı tablosu `dz-sk-users`, yanıt başlığı `X-DDO-Case: cc6433` olur.
 
-1. **Görev 1 — Adisyon Tutarlılığı (`T-1`):**
-   - `"dz-orders"` tablosunda `version` sütunu ile **Optimistic Locking** ve satır bazlı `SELECT ... FOR UPDATE` kilidi uygulanmıştır.
-   - Her mutasyon (`ORDER_OPENED`, `ITEM_ADDED`, `ITEM_CANCELLED`, `TABLE_MOVED`, `TABLE_MERGED`, `CAMPAIGN_APPLIED`, `PAYMENT_RECEIVED`) `"dz-order-events"` tablosuna yazılır ve `GET /api/v1/orders/:id/rebuild` ucu adisyon toplamını olaylardan kuruşu kuruşuna yeniden hesaplar.
-2. **Görev 2 — Hesap Bölüşme ve Ödeme (`T-2`):**
-   - Tüm tutarlar `BIGINT` kuruş olarak saklanır (`float` kullanılmaz).
-   - İndirimler kalemlere **En Büyük Kalan (Largest Remainder)** tam sayı algoritmasıyla dağıtılır ($\sum \text{kalem\_indirimi} == \text{toplam\_indirim}$).
-   - Eşit bölüşmede (`EQUAL`) kalan kuruşlar ilk paylara `+1` kuruş olarak dağıtılır (örn. `10000 kr / 3 = 3334 + 3333 + 3333 kr`). Z raporu toplamı her zaman ödeme yöntemleri toplamına eşittir.
-3. **Görev 3 — Gerçek Zamanlı Mutfak Ekranı (`T-3`):**
-   - İstasyon yönlendirme (`cold`, `hot`, `bar`), servis sırası (`course`: 1→2→3) ve gecikme uyarısı (`is_delayed`) desteklenir.
-   - `GET /api/v1/kds/stream` (SSE) ve `GET /api/v1/kds/events` uçları `Last-Event-ID` / `since_event_id` parametresi ile bağlantı kopması durumunda kaçırılan olayları `"dz-order-events"` üzerinden eksiksiz geri verir.
-4. **Görev 4 — Reçete Bazlı Stok, Alt Reçete ve Fire (`T-4`):**
-   - Ürün → Reçete → **Yarı Mamul (Alt Reçete: `SEMI-ISKENDER-SAUCE`, `SEMI-LAHMACUN-HARC`)** → Hammadde ağacı varyant çarpanı (`%150` vb.) ve modifier gramajlarıyla çözümlenir.
-   - Üretilmiş kalem iptal edildiğinde otomatik `WASTE` (fire) stok hareketi yazılır; gün sonu sayımı (`POST /api/v1/inventory/count`) teorik stok ile fiziksel sayım arasındaki farkı raporlar.
-5. **Görev 5 — Kampanya Motoru (`T-5`):**
-   - `BUY_X_PAY_Y` (3 Al 2 Öde), `COMBO` (İskender+Ayran+Künefe), `HAPPY_HOUR` (%10) ve Kupon (`SOFRA50`, `VIP20`) kurallarını değerlendirir; `stackable` (birleştirilebilir) paket ile tekil kampanyaları karşılaştırıp müşteriye **en yüksek indirimi sağlayan kombinasyonu** seçer ve nedenlerini `campaign_explanation` altında açıklar.
+Simülatör seed=42 ile sekiz şubede eşzamanlı başlangıç akışı, ardından sipariş/iptal/taşıma/ödeme/KDS olayları üretir. Aynı temiz seed ve işlem sırası iş seçimlerini tekrarlar. Zaman damgaları, global ID sırası ve dış müdahaleli çalışmanın son verisi byte düzeyinde aynı değildir.
 
----
+## Test kanıtları
 
-## 5. Veritabanı Dizin Tasarımı ve `EXPLAIN (ANALYZE)` Çıktıları
+[TESTING.md](TESTING.md) her F/T kimliği için komut ve beklenen sonucu içerir. CI; gofmt, go vet, yarış algılayıcısı, en az 40 test / domain kapsamı %70, frontend check/lint/build ve Compose üzerinde canlı doğrulama çalıştırır. Uzak GitHub Actions koşusu depo yayınına bağlıdır; aşağıdakiler yerel sonuçlardır.
 
-PostgreSQL 16 üzerinde en sık çalışan 3 kritik sorgu için bileşik dizinler (composite indexes) tasarlanmış ve `EXPLAIN (ANALYZE, BUFFERS)` ile doğrulanmıştır:
+| Kontrol | Sonuç |
+|---|---|
+| Go testleri | 56 üst düzey test PASS; domain %96,1 (468/487 statement) |
+| Linux yarış algılayıcısı | 56 test PASS; yarış saptanmadı, [Linux çıktısı](evidence/backend/race-build.txt) |
+| Canlı doğrulama | 24/24 PASS, [çıktı](evidence/verify.txt) |
+| Frontend | Check 0 hata / 0 uyarı; lint ve üretim build PASS |
+| PostgreSQL kaos | 200 → 503 → 200; sorgu toparlandı, [çıktı](evidence/chaos.txt) |
 
-### 5.1. Olay Günlüğünden Adisyon Yeniden Hesaplama (`idx_dz_order_events_order_id`)
-```sql
-EXPLAIN (ANALYZE, BUFFERS)
-SELECT id, branch_id, order_id, event_type, actor_id, payload, created_at
-FROM "dz-order-events"
-WHERE order_id = 1
-ORDER BY id ASC;
-```
+### Yük testi
+
+`make load`: 26 Ekim 2026, Docker Desktop Linux ve yerel Compose ağı; 40 saniye, okuma senaryosu 0→25→50→0 sanal kullanıcı, ek olarak sekiz şubede birer yazıcı. Yazıcı adisyon açar, ürün ekler ve kartla kapatır: 936 mutasyon / 312 kapanan adisyon. Simülatör geçici durdurulur. Donanım/önbellek sabitlenmedi; üretim kapasitesi garantisi değildir.
+
+| Trafik | p50 | p95 | p99 | Hata |
+|---|---:|---:|---:|---:|
+| Tüm HTTP | 1,164 ms | 3,738 ms | 11,407 ms | %0 |
+| Okuma | 1,142 ms | 2,488 ms | 3,801 ms | %0 |
+| Mutasyon | 8,678 ms | 15,640 ms | 29,902 ms | %0 |
+
+**23.789 istek**, yaklaşık **591 istek/sn**, **24.100/24.100 kontrol PASS**. Eşikler: hata <%1, HTTP/mutasyon p95 <500 ms ve p99 <1000 ms. [Çıktı](evidence/load.txt), [token içermeyen metrikler](evidence/load-summary.json), [senaryo](tests/load/load-test.js).
+
+### Dizin ölçümü
+
+`make explain`, [betikteki](tests/sql/explain.sql) **100.000 sentetik satırlı geçici tabloda** iki dizini eklemeden önce/sonra `EXPLAIN (ANALYZE, BUFFERS)` çalıştırır ve rollback yapar. Gerçek olay tablosunun kolon biçimi kullanılır. Tek yerel koşudur; cache etkisi kontrol edilmedi, üretim verisi ölçümü değildir.
+
+| Dizin / sorgu | Dizinsiz | Dizinli | Plan |
+|---|---:|---:|---|
+| `(order_id,id)` / adisyon olayları | 9,006 ms | 0,385 ms | Seq Scan → Bitmap Index Scan |
+| `(branch_id,id)` / SSE imleci | 6,470 ms | 0,104 ms | Seq Scan + Sort → Index Scan |
+
+[Tam çıktı](evidence/explain.txt) içinden:
+
 ```text
-Index Scan using idx_dz_order_events_order_id on "dz-order-events"  (cost=0.15..8.27 rows=9 width=112) (actual time=0.018..0.024 rows=9 loops=1)
-  Index Cond: (order_id = 1)
-  Buffers: shared hit=3
-Planning Time: 0.064 ms
-Execution Time: 0.041 ms
+ORDER_REBUILD_WITHOUT_INDEX
+Seq Scan on benchmark_events ... Rows Removed by Filter: 99950
+Execution Time: 9.006 ms
+ORDER_REBUILD_WITH_INDEX
+Bitmap Index Scan on bench_order_id ... Index Cond: (order_id = 1)
+Execution Time: 0.385 ms
+SSE_REPLAY_WITHOUT_INDEX
+Seq Scan on benchmark_events ... Rows Removed by Filter: 99875
+Execution Time: 6.470 ms
+SSE_REPLAY_WITH_INDEX
+Index Scan using bench_branch_id ... Index Cond: ((branch_id = 8) AND (id > 99000))
+Execution Time: 0.104 ms
 ```
 
-### 5.2. Mutfak Ekranı (KDS) İstasyon ve Durum Sorgusu (`idx_dz_order_items_kds`)
-```sql
-EXPLAIN (ANALYZE, BUFFERS)
-SELECT i.id, i.order_id, i.item_name, i.station, i.course, i.prep_time_sec, i.kds_status, i.created_at
-FROM "dz-order-items" i
-WHERE i.station = 'hot' AND i.kds_status IN ('PENDING', 'PREPARING') AND i.is_cancelled = FALSE
-ORDER BY i.created_at ASC;
-```
-```text
-Index Scan using idx_dz_order_items_kds on "dz-order-items" i  (cost=0.15..12.42 rows=14 width=96) (actual time=0.022..0.039 rows=14 loops=1)
-  Index Cond: ((station)::text = 'hot'::text)
-  Filter: ((NOT is_cancelled) AND ((kds_status)::text = ANY ('{PENDING,PREPARING}'::text[])))
-  Buffers: shared hit=4
-Planning Time: 0.081 ms
-Execution Time: 0.058 ms
-```
+## Doğrulama Soruları
 
-### 5.3. Keyset Sayfalamalı Denetim Kaydı Sorgusu (`idx_dz_audit_logs_cursor`)
-```sql
-EXPLAIN (ANALYZE, BUFFERS)
-SELECT id, branch_id, actor_id, actor_role, action, entity_type, entity_id, created_at
-FROM "dz-audit-logs"
-WHERE id < 50
-ORDER BY id DESC
-LIMIT 20;
-```
-```text
-Limit  (cost=0.15..4.85 rows=20 width=128) (actual time=0.014..0.029 rows=20 loops=1)
-  ->  Index Scan using idx_dz_audit_logs_cursor on "dz-audit-logs"  (cost=0.15..11.60 rows=49 width=128) (actual time=0.013..0.025 rows=20 loops=1)
-        Index Cond: (id < 50)
-  Buffers: shared hit=3
-Planning Time: 0.052 ms
-Execution Time: 0.043 ms
-```
+1. **En zor görev ve alternatifler:** Adisyon, ödeme, stok ve olayları birlikte tutarlı tutmak. Frontend kilidi başka istemcileri korumaz; yalnız optimistic kontrol de stok/ödeme/idempotans kaydını atomik yapmaz. Tek transaction ve şube kilidi seçildi; eski versiyon kontrolü korundu. Karşılığı bağımsız masaların aynı şubede sıralanmasıdır.
+2. **Bilinen sınırlama:** Çok yoğun tek şube kilitte bekler; kısa yük testi bu sınırı bulmaz. Daha yüksek ölçek masa/adisyon kilitleri ve merge için sabit kilit sırası gerektirir. SSE polling kullanır. Oturum bellektedir, yenilemede tekrar giriş gerekir. QR self-order ve çevrimdışı PWA bonusları uygulanmadı. Demo hesapları/sıfırlama ucu üretim dağıtımına uygun değildir.
+3. **İki dizin:** `(order_id,id)` 9,006→0,385 ms; `(branch_id,id)` 6,470→0,104 ms. Yukarıdaki tablo, sentetik fixture sınırı ve EXPLAIN çıktısı kapsamı belirtir.
+4. **Düzeltilen yapay zekâ çıktısı:** Önceki çözüm iptalde sabit `150 g` fire ve `satış tutarı / 3` maliyet yazıyor, üretim öncesi iptalde stok iade etmiyordu. Sonrasında kalemin gerçek tüketimi kaydedilip aynen iade/fireye dönüştürüldü. 1,5 porsiyon İskender + ekstra tereyağında test edilen tüketim `270 g et + 180 g domates + 75 g tereyağı + 120 g yoğurt`; fire maliyeti **24.750 kuruş**. `STOCK` ikinci stok düşümü olmadığını da doğrular.
+5. **Tutarlılık kanıtı:** `docker compose --profile verify run --rm verify` gerçek PostgreSQL üzerinde eşzamanlı kalemler, eski versiyon, taşıma/birleştirme, ödeme ve rebuild çalıştırır. Son koşudan:
 
----
+   ```text
+   T-1         PASS  Eşzamanlı kalem, optimistic lock (409), taşıma, birleştirme, fire ve rebuild
+   IDEMPOTENCY PASS  8 eşzamanlı aynı anahtar yalnızca 1 kalem oluşturdu; farklı gövde 409
+   SNAPSHOT    PASS  20 eşzamanlı yazım sırasında 35 rebuild okuması tutarlı
+   SONUÇ: Tüm 24 doğrulama kimliği PASS! / Exit code: 0
+   ```
 
-## 6. k6 Yük Testi ve Ölçüm Sonuçları
+## Teslim
 
-Yük testi betiği [`tests/load/load-test.js`](tests/load/load-test.js) içinde yer alır (`make load` ile çalıştırılabilir).
-
-| Metrik / Uç Nokta | İstek Sayısı / Oran | p50 (Medyan) | p95 | p99 | Hata Oranı (`http_req_failed`) | Eşik (Threshold) Durumu |
-|---|---|---|---|---|---|---|
-| **Genel (`http_req_duration`)** | 38,460 istek (~961 RPS) | **1.18 ms** | **3.42 ms** | **6.85 ms** | **%0.00** (0 / 38,460) | ✅ Geçti (`p95 < 50ms`, `p99 < 100ms`) |
-| **`GET /health`** (`health_duration_ms`) | 12,820 istek | **0.94 ms** | **2.65 ms** | **5.12 ms** | **%0.00** | ✅ Geçti (`p95 < 30ms`, `p99 < 60ms`) |
-| **`GET /api/v1/db/check`** (`db_check_duration_ms`) | 12,820 istek | **1.62 ms** | **4.38 ms** | **8.40 ms** | **%0.00** | ✅ Geçti (`p95 < 60ms`, `p99 < 120ms`) |
-| **`GET /metrics`** (`metrics_duration_ms`) | 12,820 istek | **0.88 ms** | **2.31 ms** | **4.65 ms** | **%0.00** | ✅ Geçti (`rate < 0.01`) |
+Yerel commitler aşamalıdır. Public GitHub deposu/push ve bağlantının [ankete](https://banukampus.bandirma.edu.tr/a/s/ZB76YDBA) gönderilmesi ayrıca yapılmalıdır. Son tarih **26 Ekim 2026 23.59**; teslimden sonra force push yapılmamalıdır.
 
 DDO Case Kodu: CEYLAN-cc6433

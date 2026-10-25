@@ -1,0 +1,54 @@
+UTC: 2026-10-25T22:11:23.158691+00:00
+Command: docker compose --profile verify run --rm verify
+
+ Container ddo-marul-api Running 
+ Container ddo-frontend Running 
+ Container ddo-postgres Running 
+ Container ddo-postgres Waiting 
+ Container ddo-postgres Healthy 
+ Container ddo-marul-api Waiting 
+ Container ddo-marul-api Healthy 
+ Container ddo-marul-api Waiting 
+ Container ddo-frontend Waiting 
+ Container ddo-marul-api Healthy 
+ Container ddo-frontend Healthy 
+ Container ddo-verify-run-e86d02ab7b78 Creating 
+ Container ddo-verify-run-e86d02ab7b78 Created 
+================================================================================
+ SofraPOS — Uçtan Uca Otomatik Doğrulama Aracı (make verify)
+ Backend API : http://backend:8080
+ Frontend UI : http://frontend:3000
+================================================================================
+
+--------------------------------------------------------------------------------
+ KİMLİK     | DURUM  | SÜRE     | AÇIKLAMA / KANIT ÖZETİ
+--------------------------------------------------------------------------------
+ HEALTH     | PASS   | 1ms      | GET /health (200), GET /_hz/cc64 (200) ve X-DDO-Case: cc6433 doğrulandı
+ AUTH-RBAC  | PASS   | 366ms    | 7 hesap girişi (seed.ceylan dahil), 401 (hatalı parola/tokensiz) ve 403 (RBAC yetki ihlali) doğrulandı
+ RESET      | PASS   | 547ms    | Deterministik seed yeniden oluşturuldu
+ FRONTEND   | PASS   | 10ms     | Frontend /health ve sunucuda oluşturulan ana sayfa 200
+ F-1        | PASS   | 17ms     | Menü, varyantlar (1.5 Porsiyon), modifier'lar (Ekstra Tereyağı) ve Idempotency-Key doğrulandı
+ F-2        | PASS   | 33ms     | Masa 1 adisyonu (#1) açıldı, varyant ve modifier'lı kalemler eklendi
+ F-3        | PASS   | 8ms      | KDS ekranında 2 aktif fiş listelendi ve #1 PREPARING durumuna alındı
+ F-4        | PASS   | 22ms     | Adisyon #2 için karışık (100 TL Nakit + 120 TL Kart + 30 TL Bahşiş) ödeme tamamlandı
+ F-5        | PASS   | 2ms      | Reçete bazlı otomatik stok düşümü ve yarı mamul (alt reçete) envanteri doğrulandı
+ F-6        | PASS   | 2ms      | Aktif kampanya (BUY_X_PAY_Y, COMBO, HAPPY_HOUR) ve kupon (SOFRA50, VIP20) tanımları doğrulandı
+ F-7        | PASS   | 5ms      | Vardiya Z raporu (is_balanced: true), 8 şubeli merkez raporu ve append-only denetim günlüğü doğrulandı
+ T-1        | PASS   | 91ms     | Eşzamanlı kalem ekleme, optimistic lock (409), birleştirme, taşıma, fire ve olay günlüğü rebuild (is_consistent: true) kanıtlandı
+ T-2        | PASS   | 63ms     | İndirim kalem dağıtımı (5700 kr, 0 kuruş kayması), 3'lü bölüşme ([17100 17100 17100] kr) ve Z-raporu eşitliği kanıtlandı
+ T-3        | PASS   | 19ms     | SSE kopma sonrası since_event_id=28 üzerinden 2 kaçırılan mutfak olayı eksiksiz geri alındı
+ T-4        | PASS   | 8ms      | Alt reçete (yarı mamul) stok düşümü ve gün sonu sayım farkı (350g fark = 17050 kr maliyet) raporlandı
+ T-5        | PASS   | 42ms     | En avantajlı kombinasyon (STACKABLE_BUNDLE: 245.00 TL indirim > 92.50 TL tekil indirim) ve nedenleri doğrulandı
+ SECURITY   | PASS   | 8ms      | Şube 2 okumaları/yazmaları, müşterinin adisyona yazması ve yetkisiz sıfırlama engellendi
+ IDEMPOTENCY | PASS   | 54ms     | 8 eşzamanlı aynı anahtar yalnızca 1 kalem oluşturdu; farklı gövde 409; farklı kullanıcı ayrı işlem
+ PAYMENT    | PASS   | 45ms     | Kısmi + kalem ödemesi 11000 kuruşu hem kalemde hem adisyonda kapattı; ödeme tekrarı ve kapalı adisyon korundu
+ STOCK      | PASS   | 54ms     | 270g et + 180g domates + 75g tereyağı + 120g yoğurt; tam iptal iadesi ve 24750 kuruş gerçek fire maliyeti
+ SSE-REPLAY | PASS   | 1013ms   | 205 kalıcı olay tek SSE yeniden bağlantısında eksiksiz geri alındı
+ SSE-LIVE   | PASS   | 1003ms   | Açık SSE bağlantısı yeni olayı aldı; Last-Event-ID sorgu parametresine üstün geldi
+ SNAPSHOT   | PASS   | 196ms    | 20 eşzamanlı kalem yazımı sırasında 35 rebuild okuması aynı MVCC anlık görüntüsünden tutarlı döndü
+ SHIFT      | PASS   | 18ms     | Aynı şubede yalnızca 1 açık vardiya; eşzamanlı açılış 201/409; eski rapor korundu, yeni vardiya sıfırdan başladı
+--------------------------------------------------------------------------------
+ SONUÇ: Tüm 24 doğrulama kimliği (F-1..F-7, T-1..T-5, HEALTH, AUTH-RBAC) PASS!
+================================================================================
+
+Exit code: 0

@@ -1,0 +1,12 @@
+UTC: 2026-10-25T21:38:06.001498+00:00
+Command: C:\Program Files\Git\bin\bash.exe scripts/chaos-test.sh
+
+{"status":"healthy","service":"sofrapos-backend","version":"1.0.0","environment":"production","timestamp":"2026-10-25T21:38:06.105239441Z","uptime_seconds":204.51,"database":{"status":"up","driver":"pgx/v5","latency_ms":0.111,"pool":{"total_conns":25,"idle_conns":25,"acquired_conns":0,"max_conns":25}}}
+ Container ddo-postgres Stopping 
+ Container ddo-postgres Stopped 
+Database stopped: /health=503 (expected 503)
+ Container ddo-postgres Starting 
+ Container ddo-postgres Started 
+CHAOS PASS: /health 200 -> 503 -> 200; branch query recovered (attempt 1)
+
+Exit code: 0

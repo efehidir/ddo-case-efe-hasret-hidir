@@ -1,0 +1,32 @@
+UTC: 2026-10-25T21:57:52.758034+00:00
+Command: C:\Program Files\Git\bin\bash.exe scripts/load-test.sh
+
+ Container ddo-simulator Stopping 
+ Container ddo-simulator Stopped 
+ Container ddo-marul-api Running 
+ Container ddo-postgres Running 
+ Container ddo-postgres Waiting 
+ Container ddo-postgres Healthy 
+ Container ddo-marul-api Waiting 
+ Container ddo-marul-api Healthy 
+ Container ddo-load-run-160a9987186a Creating 
+ Container ddo-load-run-160a9987186a Created 
+k6 final summary (milliseconds)
+metric | p50 | p95 | p99
+http_req_duration | 1.164 | 3.738 | 11.407
+read_duration_ms | 1.142 | 2.488 | 3.801
+write_duration_ms | 8.678 | 15.640 | 29.902
+http_reqs: {"count":23789,"rate":591.0587208849756}
+http_req_failed: {"rate":0,"passes":0,"fails":23789}
+mutation_errors: {"rate":0,"passes":0,"fails":936}
+business_errors: {"rate":0,"passes":0,"fails":24100}
+checks: {"rate":1,"passes":24100,"fails":0}
+Thresholds: PASS
+ Container ddo-postgres Waiting 
+ Container ddo-postgres Healthy 
+ Container ddo-marul-api Waiting 
+ Container ddo-marul-api Healthy 
+ Container ddo-simulator Starting 
+ Container ddo-simulator Started 
+
+Exit code: 0

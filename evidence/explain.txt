@@ -1,0 +1,77 @@
+Pager usage is off.
+BEGIN
+CREATE TABLE AS
+INSERT 0 100000
+ANALYZE
+ORDER_REBUILD_WITHOUT_INDEX
+                                                      QUERY PLAN                                                       
+-----------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=3070.41..3070.54 rows=50 width=108) (actual time=8.956..8.959 rows=50 loops=1)
+   Sort Key: id
+   Sort Method: quicksort  Memory: 32kB
+   Buffers: local read=1819
+   ->  Seq Scan on benchmark_events  (cost=0.00..3069.00 rows=50 width=108) (actual time=0.265..8.885 rows=50 loops=1)
+         Filter: (order_id = 1)
+         Rows Removed by Filter: 99950
+         Buffers: local read=1819
+ Planning:
+   Buffers: shared hit=34
+ Planning Time: 0.404 ms
+ Execution Time: 9.006 ms
+(12 rows)
+
+SSE_REPLAY_WITHOUT_INDEX
+                                                          QUERY PLAN                                                           
+-------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=3323.40..3323.65 rows=100 width=108) (actual time=6.392..6.401 rows=100 loops=1)
+   Buffers: local read=1819
+   ->  Sort  (cost=3323.40..3323.71 rows=126 width=108) (actual time=6.391..6.394 rows=100 loops=1)
+         Sort Key: id
+         Sort Method: quicksort  Memory: 57kB
+         Buffers: local read=1819
+         ->  Seq Scan on benchmark_events  (cost=0.00..3319.00 rows=126 width=108) (actual time=6.238..6.309 rows=125 loops=1)
+               Filter: ((id > 99000) AND (branch_id = 8))
+               Rows Removed by Filter: 99875
+               Buffers: local read=1819
+ Planning:
+   Buffers: shared hit=3
+ Planning Time: 0.086 ms
+ Execution Time: 6.470 ms
+(14 rows)
+
+CREATE INDEX
+CREATE INDEX
+ANALYZE
+ORDER_REBUILD_WITH_INDEX
+                                                          QUERY PLAN                                                           
+-------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=181.97..182.10 rows=50 width=108) (actual time=0.312..0.316 rows=50 loops=1)
+   Sort Key: id
+   Sort Method: quicksort  Memory: 32kB
+   Buffers: shared hit=3, local hit=28 read=25
+   ->  Bitmap Heap Scan on benchmark_events  (cost=4.81..180.56 rows=50 width=108) (actual time=0.102..0.288 rows=50 loops=1)
+         Recheck Cond: (order_id = 1)
+         Heap Blocks: exact=50
+         Buffers: shared hit=3, local hit=28 read=25
+         ->  Bitmap Index Scan on bench_order_id  (cost=0.00..4.79 rows=50 width=0) (actual time=0.086..0.086 rows=50 loops=1)
+               Index Cond: (order_id = 1)
+               Buffers: shared hit=3, local read=3
+ Planning:
+   Buffers: shared hit=28, local read=2
+ Planning Time: 0.427 ms
+ Execution Time: 0.385 ms
+(15 rows)
+
+SSE_REPLAY_WITH_INDEX
+                                                                   QUERY PLAN                                                                   
+------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..390.10 rows=100 width=108) (actual time=0.042..0.079 rows=100 loops=1)
+   Buffers: local hit=15 read=4
+   ->  Index Scan using bench_branch_id on benchmark_events  (cost=0.42..495.31 rows=127 width=108) (actual time=0.041..0.070 rows=100 loops=1)
+         Index Cond: ((branch_id = 8) AND (id > 99000))
+         Buffers: local hit=15 read=4
+ Planning Time: 0.081 ms
+ Execution Time: 0.104 ms
+(7 rows)
+
+ROLLBACK

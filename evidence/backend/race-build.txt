@@ -1,0 +1,52 @@
+UTC: 2026-10-25T22:07:42.588629+00:00
+Command: docker build --target quality --output type=local,dest=evidence/backend backend
+
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 2.40kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/golang:1.23-alpine
+#2 DONE 1.3s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 116B done
+#3 DONE 0.0s
+
+#4 [check-tools 1/5] FROM docker.io/library/golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f
+#4 resolve docker.io/library/golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f 0.0s done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 294.95kB 0.0s done
+#5 DONE 0.1s
+
+#6 [check-tools 2/5] RUN sed -i s/dl-cdn.alpinelinux.org/dl-4.alpinelinux.org/g /etc/apk/repositories && apk add --no-cache build-base python3
+#6 CACHED
+
+#7 [check-tools 3/5] WORKDIR /src
+#7 CACHED
+
+#8 [check-tools 4/5] COPY go.mod go.sum ./
+#8 CACHED
+
+#9 [check-tools 5/5] RUN go mod download
+#9 CACHED
+
+#10 [checks 1/2] COPY . .
+#10 DONE 0.1s
+
+#11 [checks 2/2] RUN go vet ./... && test -z "$(gofmt -l .)" &&     (go test -json -race -coverprofile=coverage.out ./... > test-results.jsonl || (cat test-results.jsonl && exit 1)) &&     python3 scripts/check_quality.py && go tool cover -func=coverage.out > coverage-summary.txt
+#11 27.32 Top-level tests passed: 56 (required >= 40)
+#11 27.32 Domain statement coverage: 96.1% (468/487; required >= 70%)
+#11 DONE 27.7s
+
+#12 [quality 1/1] COPY --from=checks /src/test-results.jsonl /src/coverage.out /src/coverage-summary.txt /
+#12 DONE 0.0s
+
+#13 exporting to client directory
+#13 copying files 224.06kB 0.0s done
+#13 DONE 0.0s
+
+Exit code: 0
