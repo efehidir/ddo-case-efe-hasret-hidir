@@ -80,6 +80,10 @@
 	let equalSharesPreview = $state<number[]>([]);
 	let selectedItemIdsForSplit = $state<number[]>([]);
 	let paymentMethod = $state<'CASH' | 'CARD' | 'MIXED'>('CARD');
+	$effect(() => {
+		if (splitMode === 'MIXED') paymentMethod = 'MIXED';
+		else if (splitMode !== 'FULL' && paymentMethod === 'MIXED') paymentMethod = 'CARD';
+	});
 	let customAmountKurus = $state<number>(10000);
 	let mixedCashKurus = $state<number>(10000);
 	let mixedCardKurus = $state<number>(12000);
@@ -634,7 +638,6 @@
 
 			const updated = await apiFetch(`/api/v1/orders/${selectedOrder.id}/payments`, {
 				method: 'POST',
-				headers: { 'Idempotency-Key': `ui-pay-${selectedOrder.id}-${Date.now()}` },
 				body: JSON.stringify(payload)
 			});
 			selectedOrder = updated;
@@ -770,7 +773,7 @@
 				{#if currentUser}<button class="btn-outline" onclick={logout}>Oturumu kapat</button>{/if}
 			</div>
 			<form
-				class="flex flex-wrap items-end gap-3 border-t border-border pt-3"
+				class="flex flex-col items-stretch gap-3 border-t border-border pt-3 sm:flex-row sm:items-end"
 				onsubmit={(event) => {
 					event.preventDefault();
 					void loginWithCredentials(loginEmail, loginPassword);
@@ -1102,7 +1105,9 @@
 									<p class="mod-text">+ {ticket.modifier_names}</p>
 								{/if}
 								<div class="kds-meta">
-									<span>Süre: {ticket.elapsed_sec}sn / Tahmini: {ticket.estimated_total_sec}sn</span
+									<span
+										>Geçen: {ticket.elapsed_sec} sn · Hazırlık hedefi: {ticket.prep_time_sec} sn · Kuyrukla
+										tahmin: {ticket.estimated_total_sec} sn</span
 									>
 									{#if ticket.is_delayed}
 										<span class="badge-err">GECİKTİ!</span>
@@ -1199,10 +1204,16 @@
 									<option value="BY_ITEM">Kaleme göre ödeme</option>
 									<option value="MIXED">Karışık Ödeme (Nakit + Kart)</option>
 								</select>
-								<select aria-label="Ödeme yöntemi" bind:value={paymentMethod}>
+								<select
+									aria-label="Ödeme yöntemi"
+									bind:value={paymentMethod}
+									disabled={splitMode === 'MIXED'}
+								>
 									<option value="CARD">Kredi/Banka Kartı (CARD)</option>
 									<option value="CASH">Nakit (CASH)</option>
-									<option value="MIXED">Nakit + Kart (MIXED)</option>
+									{#if splitMode === 'FULL' || splitMode === 'MIXED'}<option value="MIXED"
+											>Nakit + Kart (MIXED)</option
+										>{/if}
 								</select>
 							</div>
 
