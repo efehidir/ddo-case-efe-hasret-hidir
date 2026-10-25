@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -192,6 +193,12 @@ func (s *POSService) handleCreateOrder(c *fiber.Ctx) error {
 			return auth.RespondError(c, fiber.StatusInternalServerError, "ORDER_LOAD_ERROR", err.Error())
 		}
 		return s.saveIdempotencyAndRespond(ctx, c, idempKey, claims.UserID, fiber.StatusOK, orderDetail)
+	}
+	if tableStatus != "EMPTY" {
+		return auth.RespondError(c, 409, "TABLE_BUSY", "Masa adisyon açmaya uygun değil.")
+	}
+	if req.BranchID != tableBranchID {
+		return auth.RespondError(c, 400, "BRANCH_MISMATCH", "Masa seçilen şubeye ait değil.")
 	}
 
 	var orderID int64
@@ -435,7 +442,7 @@ func (s *POSService) handleRebuildOrderFromEvents(c *fiber.Ctx) error {
 		(rebuilt.DiscountKurus == dbDisc) &&
 		(rebuilt.TotalKurus == dbTot) &&
 		(rebuilt.PaidKurus == dbPaid) &&
-		(rebuilt.TipKurus == dbTip)
+		(rebuilt.TipKurus == dbTip) && (rebuilt.Status == dbStatus)
 
 	return c.JSON(fiber.Map{
 		"order_id":      orderID,
@@ -502,6 +509,10 @@ func (s *POSService) recalculateOrderTotalsTx(ctx context.Context, tx pgx.Tx, or
 	}
 
 	for _, alloc := range allocated {
+		// Once payment starts, existing item discounts and paid amounts are frozen.
+		if currentPaid > 0 {
+			continue
+		}
 		_, err := tx.Exec(ctx, `
 			UPDATE "dz-order-items"
 			SET allocated_discount_kurus = $1, net_total_kurus = $2, updated_at = NOW()
@@ -616,7 +627,7 @@ func (s *POSService) handleAddOrderItem(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return auth.RespondError(c, fiber.StatusBadRequest, "INVALID_JSON", "Geçersiz istek gövdesi.")
 	}
-	if req.MenuItemID <= 0 || req.Quantity <= 0 {
+	if req.MenuItemID <= 0 || req.Quantity <= 0 || req.Quantity > 100 || len(req.ModifierIDs) > 20 {
 		return auth.RespondError(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "menu_item_id ve pozitif quantity zorunludur.")
 	}
 
@@ -638,7 +649,7 @@ func (s *POSService) handleAddOrderItem(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusNotFound, "ORDER_NOT_FOUND", "Adisyon bulunamadı.")
 	}
 
-	if orderStatus == "MERGED" || orderStatus == "CANCELLED" {
+	if orderStatus == "MERGED" || orderStatus == "CANCELLED" || orderStatus == "PAID" {
 		return auth.RespondError(c, fiber.StatusConflict, "ORDER_CLOSED", "Birleştirilmiş veya iptal edilmiş adisyona kalem eklenemez.")
 	}
 
@@ -674,12 +685,20 @@ func (s *POSService) handleAddOrderItem(c *fiber.Ctx) error {
 		if err == nil {
 			variantIDPtr = &req.VariantID
 		}
+		if err != nil {
+			return auth.RespondError(c, 400, "INVALID_VARIANT", "Varyant bu ürüne ait değil.")
+		}
 	}
 
 	var modDelta int64
 	var modNames []string
 	var modEffects []domain.ModifierRecipeEffect
+	seenModifiers := map[int64]bool{}
 	for _, modID := range req.ModifierIDs {
+		if seenModifiers[modID] {
+			return auth.RespondError(c, 400, "DUPLICATE_MODIFIER", "Ek seçenek tekrarlanamaz.")
+		}
+		seenModifiers[modID] = true
 		var mName, ingCode string
 		var mPrice, extraGrams int64
 		if err := tx.QueryRow(ctx, `
@@ -694,6 +713,8 @@ func (s *POSService) handleAddOrderItem(c *fiber.Ctx) error {
 				IngredientCode: ingCode,
 				ExtraQtyGrams:  extraGrams,
 			})
+		} else {
+			return auth.RespondError(c, 400, "INVALID_MODIFIER", "Ek seçenek bu ürüne ait değil.")
 		}
 	}
 
@@ -738,6 +759,9 @@ func (s *POSService) handleAddOrderItem(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "EVENT_LOG_ERROR", err.Error())
 	}
 
+	if err := s.invalidateUnpaidDiscountTx(ctx, tx, orderID, branchID, claims.UserID); err != nil {
+		return err
+	}
 	if err := s.recalculateOrderTotalsTx(ctx, tx, orderID); err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "RECALC_ERROR", err.Error())
 	}
@@ -795,6 +819,14 @@ func (s *POSService) handleCancelOrderItem(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	var orderStatus string
+	var orderPaid int64
+	if err := tx.QueryRow(ctx, `SELECT status, paid_kurus FROM "dz-orders" WHERE id=$1 FOR UPDATE`, orderID).Scan(&orderStatus, &orderPaid); err != nil {
+		return err
+	}
+	if orderPaid > 0 || orderStatus != "OPEN" {
+		return auth.RespondError(c, 409, "PAYMENT_STARTED", "Ödeme başladıktan sonra kalem iptal edilemez.")
+	}
 
 	var branchID, menuItemID, lineSub int64
 	var itemName, station, kdsStatus string
@@ -863,6 +895,9 @@ func (s *POSService) handleCancelOrderItem(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "EVENT_LOG_ERROR", err.Error())
 	}
 
+	if err := s.invalidateUnpaidDiscountTx(ctx, tx, orderID, branchID, claims.UserID); err != nil {
+		return err
+	}
 	if err := s.recalculateOrderTotalsTx(ctx, tx, orderID); err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "RECALC_ERROR", err.Error())
 	}
@@ -916,11 +951,15 @@ func (s *POSService) handleMoveOrderTable(c *fiber.Ctx) error {
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var branchID, fromTableID int64
+	var status string
 	err = tx.QueryRow(ctx, `
-		SELECT branch_id, table_id FROM "dz-orders" WHERE id = $1 FOR UPDATE
-	`, orderID).Scan(&branchID, &fromTableID)
+		SELECT branch_id, table_id, status FROM "dz-orders" WHERE id = $1 FOR UPDATE
+	`, orderID).Scan(&branchID, &fromTableID, &status)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusNotFound, "ORDER_NOT_FOUND", "Adisyon bulunamadı.")
+	}
+	if status != "OPEN" && status != "PARTIALLY_PAID" {
+		return auth.RespondError(c, 409, "ORDER_CLOSED", "Kapalı adisyon taşınamaz.")
 	}
 
 	if fromTableID == req.TargetTableID {
@@ -991,6 +1030,18 @@ func (s *POSService) handleMergeOrders(c *fiber.Ctx) error {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "TX_ERROR", err.Error())
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	ids := []int64{req.SourceOrderID, req.TargetOrderID}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	for _, id := range ids {
+		var paid int64
+		var status string
+		if err := tx.QueryRow(ctx, `SELECT paid_kurus, status FROM "dz-orders" WHERE id=$1 FOR UPDATE`, id).Scan(&paid, &status); err != nil {
+			return err
+		}
+		if paid > 0 || status != "OPEN" {
+			return auth.RespondError(c, 409, "MERGE_NOT_ALLOWED", "Yalnızca ödeme başlanmamış açık adisyonlar birleştirilebilir.")
+		}
+	}
 
 	var srcBranch, srcTable, srcSub int64
 	var srcStatus string
@@ -1008,6 +1059,9 @@ func (s *POSService) handleMergeOrders(c *fiber.Ctx) error {
 	`, req.TargetOrderID).Scan(&tgtBranch, &tgtTable, &tgtStatus)
 	if err != nil {
 		return auth.RespondError(c, fiber.StatusNotFound, "TARGET_NOT_FOUND", "Hedef adisyon bulunamadı.")
+	}
+	if srcBranch != tgtBranch {
+		return auth.RespondError(c, 409, "CROSS_BRANCH_MERGE", "Farklı şubelerin adisyonları birleştirilemez.")
 	}
 
 	// Move active items from source order to target order and record ITEM_ADDED events on target
@@ -1040,6 +1094,9 @@ func (s *POSService) handleMergeOrders(c *fiber.Ctx) error {
 		TargetOrderID:         req.TargetOrderID,
 		TransferredTotalKurus: srcSub,
 	})
+	_, _ = s.appendOrderEventTx(ctx, tx, srcBranch, req.SourceOrderID, claims.UserID, domain.EventTableMerged, domain.TableMergedPayload{
+		SourceOrderID: req.SourceOrderID, TargetOrderID: req.TargetOrderID, TransferredTotalKurus: srcSub,
+	})
 
 	for _, p := range movedItems {
 		_, _ = s.appendOrderEventTx(ctx, tx, tgtBranch, req.TargetOrderID, claims.UserID, domain.EventItemAdded, p)
@@ -1057,6 +1114,9 @@ func (s *POSService) handleMergeOrders(c *fiber.Ctx) error {
 		WHERE id = $2
 	`, tgtTable, srcTable)
 
+	if err := s.invalidateUnpaidDiscountTx(ctx, tx, req.TargetOrderID, tgtBranch, claims.UserID); err != nil {
+		return err
+	}
 	if err := s.recalculateOrderTotalsTx(ctx, tx, req.TargetOrderID); err != nil {
 		return auth.RespondError(c, fiber.StatusInternalServerError, "RECALC_ERROR", err.Error())
 	}
@@ -1163,11 +1223,20 @@ func (s *POSService) handleApplyCampaigns(c *fiber.Ctx) error {
 		CouponCode  string `json:"coupon_code"`
 		CurrentHour *int   `json:"current_hour"`
 	}
-	_ = c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return auth.RespondError(c, 400, "INVALID_JSON", "Geçersiz JSON gövdesi.")
+	}
 	req.CouponCode = strings.TrimSpace(strings.ToUpper(req.CouponCode))
 
-	hour := time.Now().Hour()
+	location, _ := time.LoadLocation("Europe/Istanbul")
+	hour := time.Now().In(location).Hour()
 	if req.CurrentHour != nil {
+		if s.cfg.AppEnv != "test" {
+			return auth.RespondError(c, 400, "CLOCK_OVERRIDE_DISABLED", "Saat değişikliği yalnızca test ortamında kullanılabilir.")
+		}
+		if *req.CurrentHour < 0 || *req.CurrentHour > 23 {
+			return auth.RespondError(c, 400, "INVALID_HOUR", "Saat 0 ile 23 arasında olmalı.")
+		}
 		hour = *req.CurrentHour
 	}
 
@@ -1180,6 +1249,14 @@ func (s *POSService) handleApplyCampaigns(c *fiber.Ctx) error {
 	var branchID int64
 	if err := tx.QueryRow(ctx, `SELECT branch_id FROM "dz-orders" WHERE id = $1 FOR UPDATE`, orderID).Scan(&branchID); err != nil {
 		return auth.RespondError(c, fiber.StatusNotFound, "ORDER_NOT_FOUND", "Adisyon bulunamadı.")
+	}
+	var orderPaid int64
+	var orderStatus string
+	if err := tx.QueryRow(ctx, `SELECT paid_kurus, status FROM "dz-orders" WHERE id=$1`, orderID).Scan(&orderPaid, &orderStatus); err != nil {
+		return err
+	}
+	if orderPaid > 0 || orderStatus != "OPEN" {
+		return auth.RespondError(c, 409, "PAYMENT_STARTED", "Ödeme başladıktan sonra kampanya değiştirilemez.")
 	}
 
 	// Load basket items
@@ -1232,6 +1309,9 @@ func (s *POSService) handleApplyCampaigns(c *fiber.Ctx) error {
 		`, req.CouponCode).Scan(&cp.Code, &cp.Description, &cp.DiscountType, &cp.DiscountValue, &cp.MinOrderKurus, &cp.MaxDiscountKurus, &cp.Stackable, &cp.IsActive)
 		if err == nil {
 			couponPtr = &cp
+		}
+		if err != nil || !cp.IsActive {
+			return auth.RespondError(c, 400, "INVALID_COUPON", "Kupon bulunamadı veya aktif değil.")
 		}
 	}
 
@@ -1388,6 +1468,23 @@ func (s *POSService) handleCreatePayment(c *fiber.Ctx) error {
 	if req.TipKurus < 0 {
 		return auth.RespondError(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "Bahşiş negatif olamaz.")
 	}
+	if req.Method != "CASH" && req.Method != "CARD" && req.Method != "MIXED" {
+		return auth.RespondError(c, 400, "INVALID_METHOD", "Ödeme yöntemi CASH, CARD veya MIXED olmalı.")
+	}
+	switch req.SplitMode {
+	case "FULL", "EQUAL", "BY_ITEM", "CUSTOM", "MIXED":
+	default:
+		return auth.RespondError(c, 400, "INVALID_SPLIT_MODE", "Geçersiz bölüşme yöntemi.")
+	}
+	if req.AmountKurus < 0 || req.CashAmountKurus < 0 || req.CardAmountKurus < 0 || req.TipKurus > 100000000 || req.AmountKurus > 100000000 || req.CashAmountKurus > 100000000 || req.CardAmountKurus > 100000000 {
+		return auth.RespondError(c, 400, "INVALID_AMOUNT", "Geçersiz ödeme tutarı.")
+	}
+	if req.SplitMode == "BY_ITEM" && (len(req.SelectedItemIDs) == 0 || req.Method == "MIXED") {
+		return auth.RespondError(c, 400, "INVALID_ITEMS", "Kaleme göre ödemede kalem seçin ve tek ödeme yöntemi kullanın.")
+	}
+	if req.SplitMode != "BY_ITEM" && len(req.SelectedItemIDs) > 0 {
+		return auth.RespondError(c, 400, "INVALID_ITEMS", "Kalem seçimi yalnızca BY_ITEM ödemesinde kullanılabilir.")
+	}
 
 	tx, err := s.beginTx(ctx)
 	if err != nil {
@@ -1408,6 +1505,9 @@ func (s *POSService) handleCreatePayment(c *fiber.Ctx) error {
 	}
 
 	remaining := max64(0, total-paid)
+	if status != "OPEN" && status != "PARTIALLY_PAID" {
+		return auth.RespondError(c, 409, "ORDER_CLOSED", "Kapalı adisyona ödeme alınamaz.")
+	}
 	if remaining <= 0 {
 		return auth.RespondError(c, fiber.StatusConflict, "ALREADY_PAID", "Adisyonun kalan borcu bulunmamaktadır.")
 	}
@@ -1475,14 +1575,28 @@ func (s *POSService) handleCreatePayment(c *fiber.Ctx) error {
 			fmt.Sprintf("Ödeme tutarı (%d kr) kalan adisyon tutarını (%d kr) aşamaz.", totalPaymentThisCall, remaining))
 	}
 
-	// Mark selected items paid if BY_ITEM
-	if len(req.SelectedItemIDs) > 0 {
-		for _, itemID := range req.SelectedItemIDs {
-			_, _ = tx.Exec(ctx, `
-				UPDATE "dz-order-items"
-				SET paid_kurus = net_total_kurus, updated_at = NOW()
-				WHERE id = $1 AND order_id = $2
-			`, itemID, orderID)
+	rows, err := tx.Query(ctx, `SELECT id, net_total_kurus, paid_kurus FROM "dz-order-items" WHERE order_id=$1 AND is_cancelled=FALSE ORDER BY id FOR UPDATE`, orderID)
+	if err != nil {
+		return err
+	}
+	var payableItems []domain.AllocatedLineItem
+	for rows.Next() {
+		var it domain.AllocatedLineItem
+		if err := rows.Scan(&it.ID, &it.NetTotalKurus, &it.PaidKurus); err != nil {
+			rows.Close()
+			return err
+		}
+		it.RemainingKurus = max64(0, it.NetTotalKurus-it.PaidKurus)
+		payableItems = append(payableItems, it)
+	}
+	rows.Close()
+	allocations, err := domain.AllocatePayment(payableItems, totalPaymentThisCall, req.SelectedItemIDs)
+	if err != nil {
+		return auth.RespondError(c, 400, "PAYMENT_ALLOCATION_ERROR", err.Error())
+	}
+	for itemID, amount := range allocations {
+		if _, err := tx.Exec(ctx, `UPDATE "dz-order-items" SET paid_kurus=paid_kurus+$1, updated_at=NOW() WHERE id=$2`, amount, itemID); err != nil {
+			return err
 		}
 	}
 
@@ -1490,6 +1604,9 @@ func (s *POSService) handleCreatePayment(c *fiber.Ctx) error {
 	var openShiftID int64
 	if err := tx.QueryRow(ctx, `SELECT id FROM "dz-shifts" WHERE branch_id = $1 AND status = 'OPEN' ORDER BY id DESC LIMIT 1`, branchID).Scan(&openShiftID); err == nil {
 		shiftID = &openShiftID
+	}
+	if shiftID == nil {
+		return auth.RespondError(c, 409, "NO_OPEN_SHIFT", "Ödeme almadan önce vardiya açın.")
 	}
 
 	paidItemsJSON, _ := json.Marshal(req.SelectedItemIDs)
@@ -1581,6 +1698,22 @@ func (s *POSService) handleCreatePayment(c *fiber.Ctx) error {
 
 	detail, _ := s.loadOrderDetail(ctx, orderID)
 	return s.saveIdempotencyAndRespond(ctx, c, idempKey, claims.UserID, fiber.StatusCreated, detail)
+}
+
+// Basket edits invalidate the previous unpaid campaign quote. Paid lines keep their quote.
+func (s *POSService) invalidateUnpaidDiscountTx(ctx context.Context, tx pgx.Tx, orderID, branchID, actorID int64) error {
+	var paid, discount int64
+	if err := tx.QueryRow(ctx, `SELECT paid_kurus, discount_kurus FROM "dz-orders" WHERE id=$1`, orderID).Scan(&paid, &discount); err != nil {
+		return err
+	}
+	if paid > 0 || discount == 0 {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `UPDATE "dz-orders" SET discount_kurus=0, coupon_code='', campaign_explanation='[]' WHERE id=$1`, orderID); err != nil {
+		return err
+	}
+	_, err := s.appendOrderEventTx(ctx, tx, branchID, orderID, actorID, domain.EventCampaignApplied, domain.CampaignAppliedPayload{DiscountKurus: 0})
+	return err
 }
 
 func max64(a, b int64) int64 {

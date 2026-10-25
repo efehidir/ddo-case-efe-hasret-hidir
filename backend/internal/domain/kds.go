@@ -8,22 +8,22 @@ import (
 
 // KDSTicketItem represents a single kitchen order line item with station, course, and delay telemetry.
 type KDSTicketItem struct {
-	OrderItemID        int64     `json:"order_item_id"`
-	OrderID            int64     `json:"order_id"`
-	BranchID           int64     `json:"branch_id"`
-	TableCode          string    `json:"table_code"`
-	ItemName           string    `json:"item_name"`
-	VariantName        string    `json:"variant_name"`
-	ModifierNames      string    `json:"modifier_names"`
-	Quantity           int       `json:"quantity"`
-	Station            string    `json:"station"` // "cold", "hot", "bar"
-	Course             int       `json:"course"`  // 1=Starter, 2=Main, 3=Dessert/Bar
-	PrepTimeSec        int       `json:"prep_time_sec"`
-	EstimatedTotalSec  int       `json:"estimated_total_sec"`
-	ElapsedSec         int       `json:"elapsed_sec"`
-	IsDelayed          bool      `json:"is_delayed"`
-	KDSStatus          string    `json:"kds_status"` // "PENDING", "PREPARING", "READY", "SERVED", "CANCELLED"
-	CreatedAt          time.Time `json:"created_at"`
+	OrderItemID       int64     `json:"order_item_id"`
+	OrderID           int64     `json:"order_id"`
+	BranchID          int64     `json:"branch_id"`
+	TableCode         string    `json:"table_code"`
+	ItemName          string    `json:"item_name"`
+	VariantName       string    `json:"variant_name"`
+	ModifierNames     string    `json:"modifier_names"`
+	Quantity          int       `json:"quantity"`
+	Station           string    `json:"station"` // "cold", "hot", "bar"
+	Course            int       `json:"course"`  // 1=Starter, 2=Main, 3=Dessert/Bar
+	PrepTimeSec       int       `json:"prep_time_sec"`
+	EstimatedTotalSec int       `json:"estimated_total_sec"`
+	ElapsedSec        int       `json:"elapsed_sec"`
+	IsDelayed         bool      `json:"is_delayed"`
+	KDSStatus         string    `json:"kds_status"` // "PENDING", "PREPARING", "READY", "SERVED", "CANCELLED"
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 // EnrichAndSortKDSItems calculates elapsed time, queue-adjusted prep time estimate, delay warning,

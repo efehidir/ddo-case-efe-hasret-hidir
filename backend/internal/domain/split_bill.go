@@ -123,7 +123,7 @@ func AllocateDiscountAcrossItems(items []LineItemInput, totalDiscountKurus int64
 // CalculateEqualSplit divides remainingKurus into `parts` integer shares where the first
 // (remainingKurus % parts) shares receive 1 extra kurus so that sum(shares) == remainingKurus.
 func CalculateEqualSplit(remainingKurus int64, parts int) ([]int64, error) {
-	if parts <= 0 {
+	if parts <= 0 || parts > 100 {
 		return nil, errors.New("parts must be greater than zero")
 	}
 	if remainingKurus <= 0 {
@@ -141,6 +141,43 @@ func CalculateEqualSplit(remainingKurus int64, parts int) ([]int64, error) {
 		}
 	}
 	return shares, nil
+}
+
+// AllocatePayment assigns every paid kuruş to an active line, including partial,
+// equal and mixed payments. BY_ITEM must settle exactly the selected lines.
+func AllocatePayment(items []AllocatedLineItem, amount int64, selected []int64) (map[int64]int64, error) {
+	if amount <= 0 {
+		return nil, errors.New("payment must be positive")
+	}
+	if len(selected) > 0 {
+		due, err := CalculateItemSplit(items, selected)
+		if err != nil {
+			return nil, err
+		}
+		if due != amount {
+			return nil, errors.New("payment must equal the selected items' remaining amount")
+		}
+	}
+	selectedSet := map[int64]bool{}
+	for _, id := range selected {
+		selectedSet[id] = true
+	}
+	result := map[int64]int64{}
+	remaining := amount
+	for _, it := range items {
+		if len(selectedSet) > 0 && !selectedSet[it.ID] {
+			continue
+		}
+		part := min(remaining, it.RemainingKurus)
+		if part > 0 {
+			result[it.ID] = part
+			remaining -= part
+		}
+	}
+	if remaining != 0 {
+		return nil, errors.New("payment exceeds item balances")
+	}
+	return result, nil
 }
 
 // CalculateItemSplit calculates the exact remaining kurus due for a subset of order item IDs.

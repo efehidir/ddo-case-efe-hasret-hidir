@@ -50,12 +50,12 @@ type CampaignDecision struct {
 
 // CampaignEvaluationResult holds the winning combination, total discount in kurus, and explanations.
 type CampaignEvaluationResult struct {
-	SubtotalKurus       int64              `json:"subtotal_kurus"`
-	TotalDiscountKurus  int64              `json:"total_discount_kurus"`
-	NetTotalKurus       int64              `json:"net_total_kurus"`
-	WinningStrategy     string             `json:"winning_strategy"`
-	AppliedCampaigns    []CampaignDecision `json:"applied_campaigns"`
-	AllEvaluations      []CampaignDecision `json:"all_evaluations"`
+	SubtotalKurus      int64              `json:"subtotal_kurus"`
+	TotalDiscountKurus int64              `json:"total_discount_kurus"`
+	NetTotalKurus      int64              `json:"net_total_kurus"`
+	WinningStrategy    string             `json:"winning_strategy"`
+	AppliedCampaigns   []CampaignDecision `json:"applied_campaigns"`
+	AllEvaluations     []CampaignDecision `json:"all_evaluations"`
 }
 
 // EvaluateBestCampaigns evaluates all active campaigns and optional coupon against the basket,

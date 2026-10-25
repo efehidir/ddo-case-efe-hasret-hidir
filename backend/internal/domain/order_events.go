@@ -83,20 +83,20 @@ type PaymentReceivedPayload struct {
 
 // RebuiltOrderState represents the deterministic state reconstructed purely from OrderEvent log.
 type RebuiltOrderState struct {
-	OrderID          int64   `json:"order_id"`
-	CurrentTableID   int64   `json:"current_table_id"`
-	ActiveItemCount  int     `json:"active_item_count"`
-	CancelledCount   int     `json:"cancelled_count"`
-	WasteItemCount   int     `json:"waste_item_count"`
-	MergedOrders     []int64 `json:"merged_orders"`
-	SubtotalKurus    int64   `json:"subtotal_kurus"`
-	DiscountKurus    int64   `json:"discount_kurus"`
-	TotalKurus       int64   `json:"total_kurus"`
-	PaidKurus        int64   `json:"paid_kurus"`
-	TipKurus         int64   `json:"tip_kurus"`
-	RemainingKurus   int64   `json:"remaining_kurus"`
-	Status           string  `json:"status"`
-	EventsProcessed  int     `json:"events_processed"`
+	OrderID         int64   `json:"order_id"`
+	CurrentTableID  int64   `json:"current_table_id"`
+	ActiveItemCount int     `json:"active_item_count"`
+	CancelledCount  int     `json:"cancelled_count"`
+	WasteItemCount  int     `json:"waste_item_count"`
+	MergedOrders    []int64 `json:"merged_orders"`
+	SubtotalKurus   int64   `json:"subtotal_kurus"`
+	DiscountKurus   int64   `json:"discount_kurus"`
+	TotalKurus      int64   `json:"total_kurus"`
+	PaidKurus       int64   `json:"paid_kurus"`
+	TipKurus        int64   `json:"tip_kurus"`
+	RemainingKurus  int64   `json:"remaining_kurus"`
+	Status          string  `json:"status"`
+	EventsProcessed int     `json:"events_processed"`
 }
 
 // RebuildOrderStateFromEvents replays the event log in order to reconstruct exact kurus totals.
@@ -171,7 +171,13 @@ func RebuildOrderStateFromEvents(events []OrderEvent) (RebuiltOrderState, error)
 			if err := json.Unmarshal(ev.Payload, &p); err != nil {
 				return RebuiltOrderState{}, fmt.Errorf("unmarshal TABLE_MERGED: %w", err)
 			}
-			state.MergedOrders = append(state.MergedOrders, p.SourceOrderID)
+			if state.OrderID == p.SourceOrderID {
+				state.SubtotalKurus, state.DiscountKurus, state.TotalKurus = 0, 0, 0
+				state.ActiveItemCount = 0
+				state.Status = "MERGED"
+			} else {
+				state.MergedOrders = append(state.MergedOrders, p.SourceOrderID)
+			}
 
 		case EventCampaignApplied:
 			var p CampaignAppliedPayload
@@ -199,6 +205,9 @@ func RebuildOrderStateFromEvents(events []OrderEvent) (RebuiltOrderState, error)
 		state.RemainingKurus = 0
 	}
 
+	if state.Status == "MERGED" {
+		return state, nil
+	}
 	if state.TotalKurus > 0 && state.PaidKurus >= state.TotalKurus {
 		state.Status = "PAID"
 	} else if state.PaidKurus > 0 {

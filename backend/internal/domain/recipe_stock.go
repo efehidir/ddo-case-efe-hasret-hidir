@@ -132,11 +132,11 @@ type StockVarianceRow struct {
 
 // VarianceReport holds all rows and aggregate deficit/surplus totals in kurus.
 type VarianceReport struct {
-	Rows                   []StockVarianceRow `json:"rows"`
-	TotalDeficitGrams      int64              `json:"total_deficit_grams"`
-	TotalDeficitCostKurus  int64              `json:"total_deficit_cost_kurus"`
-	TotalSurplusGrams      int64              `json:"total_surplus_grams"`
-	NetVarianceCostKurus   int64              `json:"net_variance_cost_kurus"`
+	Rows                  []StockVarianceRow `json:"rows"`
+	TotalDeficitGrams     int64              `json:"total_deficit_grams"`
+	TotalDeficitCostKurus int64              `json:"total_deficit_cost_kurus"`
+	TotalSurplusGrams     int64              `json:"total_surplus_grams"`
+	NetVarianceCostKurus  int64              `json:"net_variance_cost_kurus"`
 }
 
 // ComputeStockVarianceReport calculates the exact difference between end-of-day physical count
