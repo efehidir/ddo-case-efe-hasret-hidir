@@ -5,6 +5,8 @@ import (
 	_ "embed"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -25,61 +27,82 @@ const DefaultDemoPassword = "Sofra2026!"
 
 // MigrateAndSeed applies SQL migrations and ensures initial deterministic seed data exists.
 func (p *Postgres) MigrateAndSeed(ctx context.Context) error {
-	if _, err := p.pool.Exec(ctx, migration001UpSQL); err != nil {
-		return fmt.Errorf("apply migration 001: %w", err)
-	}
-
-	_, err := p.pool.Exec(ctx, `
-		INSERT INTO "dz-schema-migrations" (version)
-		VALUES ('001_sofrapos_schema')
-		ON CONFLICT (version) DO NOTHING
-	`)
-	if err != nil {
-		return fmt.Errorf("record migration version: %w", err)
-	}
-
-	if _, err := p.pool.Exec(ctx, migration002UpSQL); err != nil {
-		return fmt.Errorf("apply migration 002: %w", err)
-	}
-	if _, err := p.pool.Exec(ctx, `INSERT INTO "dz-schema-migrations" (version) VALUES ('002_integrity') ON CONFLICT DO NOTHING`); err != nil {
-		return err
-	}
-
-	var userCount int
-	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM "dz-sk-users"`).Scan(&userCount); err != nil {
-		return fmt.Errorf("check user count: %w", err)
-	}
-
-	if userCount == 0 {
-		if err := p.seedInitialData(ctx); err != nil {
-			return fmt.Errorf("seed initial data: %w", err)
-		}
-	}
-
-	if _, err := p.pool.Exec(ctx, migration003UpSQL); err != nil {
-		return err
-	}
-	if _, err := p.pool.Exec(ctx, `INSERT INTO "dz-schema-migrations" (version) VALUES ('003_recipe_modifiers') ON CONFLICT DO NOTHING`); err != nil {
-		return err
-	}
-	return nil
-}
-
-// ResetDemoData drops and recreates the schema and re-runs the deterministic initial seed.
-func (p *Postgres) ResetDemoData(ctx context.Context) error {
-	if _, err := p.pool.Exec(ctx, migration001DownSQL); err != nil {
-		return fmt.Errorf("drop schema during reset: %w", err)
-	}
-	return p.MigrateAndSeed(ctx)
-}
-
-func (p *Postgres) seedInitialData(ctx context.Context) error {
 	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(6433,0)`); err != nil {
+		return err
+	}
+	if err := p.migrateAndSeedTx(ctx, tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
 
+func (p *Postgres) migrateAndSeedTx(ctx context.Context, tx pgx.Tx) error {
+	if _, err := tx.Exec(ctx, `CREATE TABLE IF NOT EXISTS "dz-schema-migrations" (version VARCHAR(64) PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`); err != nil {
+		return err
+	}
+	for _, migration := range []struct{ version, sql string }{
+		{"001_sofrapos_schema", migration001UpSQL},
+		{"002_integrity", migration002UpSQL},
+	} {
+		if err := applyMigration(ctx, tx, migration.version, migration.sql); err != nil {
+			return err
+		}
+	}
+
+	var userCount int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM "dz-sk-users"`).Scan(&userCount); err != nil {
+		return fmt.Errorf("check user count: %w", err)
+	}
+
+	if userCount == 0 {
+		if err := p.seedInitialData(ctx, tx); err != nil {
+			return fmt.Errorf("seed initial data: %w", err)
+		}
+	}
+
+	return applyMigration(ctx, tx, "003_recipe_modifiers", migration003UpSQL)
+}
+
+func applyMigration(ctx context.Context, tx pgx.Tx, version, sql string) error {
+	var applied bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM "dz-schema-migrations" WHERE version=$1)`, version).Scan(&applied); err != nil {
+		return err
+	}
+	if applied {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, sql); err != nil {
+		return fmt.Errorf("apply migration %s: %w", version, err)
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO "dz-schema-migrations" (version) VALUES ($1)`, version)
+	return err
+}
+
+// ResetDemoData drops and recreates the schema and re-runs the deterministic initial seed.
+func (p *Postgres) ResetDemoData(ctx context.Context) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(6433,0)`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, migration001DownSQL); err != nil {
+		return fmt.Errorf("drop schema during reset: %w", err)
+	}
+	if err := p.migrateAndSeedTx(ctx, tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (p *Postgres) seedInitialData(ctx context.Context, tx pgx.Tx) error {
 	// 1. Seed 8 Branches
 	branches := []struct {
 		code string
@@ -352,5 +375,5 @@ func (p *Postgres) seedInitialData(ctx context.Context) error {
 		return fmt.Errorf("insert initial audit log: %w", err)
 	}
 
-	return tx.Commit(ctx)
+	return nil
 }

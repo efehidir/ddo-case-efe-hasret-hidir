@@ -305,7 +305,7 @@ func (s *POSService) handleCreateMenuItem(c *fiber.Ctx) error {
 	}
 	req.Code = strings.TrimSpace(req.Code)
 	req.Name = strings.TrimSpace(req.Name)
-	if req.CategoryID <= 0 || req.Code == "" || req.Name == "" || req.BasePriceKurus <= 0 {
+	if req.CategoryID <= 0 || req.Code == "" || req.Name == "" || req.BasePriceKurus <= 0 || req.BasePriceKurus > 100000000 || len(req.Code) > 48 || len(req.Name) > 120 {
 		return auth.RespondError(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "Kategori, ürün kodu, ad ve pozitif fiyat (kuruş) zorunludur.")
 	}
 	if req.Station == "" {
@@ -316,6 +316,9 @@ func (s *POSService) handleCreateMenuItem(c *fiber.Ctx) error {
 	}
 	if req.PrepTimeSec <= 0 {
 		req.PrepTimeSec = 240
+	}
+	if (req.Station != "cold" && req.Station != "hot" && req.Station != "bar") || req.Course > 10 || req.PrepTimeSec > 86400 {
+		return auth.RespondError(c, 400, "VALIDATION_ERROR", "Geçerli istasyon, kurs (1–10) ve hazırlık süresi (1–86400 sn) gerekir.")
 	}
 
 	tx, err := s.beginTx(ctx)

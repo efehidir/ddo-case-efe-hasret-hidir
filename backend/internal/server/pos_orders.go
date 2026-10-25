@@ -1510,6 +1510,12 @@ func (s *POSService) handleCreatePayment(c *fiber.Ctx) error {
 	if req.SplitMode != "BY_ITEM" && len(req.SelectedItemIDs) > 0 {
 		return auth.RespondError(c, 400, "INVALID_ITEMS", "Kalem seçimi yalnızca BY_ITEM ödemesinde kullanılabilir.")
 	}
+	if req.Method != "MIXED" && (req.CashAmountKurus != 0 || req.CardAmountKurus != 0) {
+		return auth.RespondError(c, 400, "INVALID_METHOD", "Nakit ve kart alt tutarları yalnızca MIXED yönteminde kullanılır.")
+	}
+	if req.SplitMode == "MIXED" && req.Method != "MIXED" {
+		return auth.RespondError(c, 400, "INVALID_METHOD", "MIXED bölüşme için MIXED ödeme yöntemi gerekir.")
+	}
 
 	tx, err := s.beginTx(ctx)
 	if err != nil {
@@ -1545,7 +1551,7 @@ func (s *POSService) handleCreatePayment(c *fiber.Ctx) error {
 	}
 	var legs []paymentLeg
 
-	if req.Method == "MIXED" || (req.CashAmountKurus > 0 && req.CardAmountKurus > 0) {
+	if req.Method == "MIXED" {
 		if req.CashAmountKurus <= 0 || req.CardAmountKurus <= 0 {
 			return auth.RespondError(c, fiber.StatusBadRequest, "VALIDATION_ERROR", "Karışık (MIXED) ödemede hem nakit hem kart tutarı pozitif olmalıdır.")
 		}
@@ -1695,9 +1701,9 @@ func (s *POSService) handleCreatePayment(c *fiber.Ctx) error {
 
 	_, err = tx.Exec(ctx, `
 		UPDATE "dz-orders"
-		SET paid_kurus = paid_kurus + $1, tip_kurus = tip_kurus + $2, status = $3,
+		SET paid_kurus = paid_kurus + $1, tip_kurus = tip_kurus + $2, status = $3::text,
 		    version = version + 1, updated_at = NOW(),
-		    closed_at = CASE WHEN $3 = 'PAID' THEN NOW() ELSE closed_at END
+		    closed_at = CASE WHEN $3::text = 'PAID' THEN NOW() ELSE closed_at END
 		WHERE id = $4
 	`, totalPaymentThisCall, req.TipKurus, newStatus, orderID)
 	if err != nil {
