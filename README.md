@@ -116,11 +116,11 @@ Execution Time: 0.104 ms
 
 ## Doğrulama Soruları
 
-1. **En zor görev ve alternatifler:** Adisyon, ödeme, stok ve olayları birlikte tutarlı tutmak. Frontend kilidi başka istemcileri korumaz; yalnız optimistic kontrol de stok/ödeme/idempotans kaydını atomik yapmaz. Tek transaction ve şube kilidi seçildi; eski versiyon kontrolü korundu. Karşılığı bağımsız masaların aynı şubede sıralanmasıdır.
+1. **En zor görev ve alternatifler:** Öncelikle bu büyüklükte ayrıntılı bir proje için 3 gün süre verilmesi beni şaşırttı ve kesinlikle söyleyebilirimki en zor görev bu süre içerisinde bu projeyi bitirmekti. Çözüm olarak projenin çocuğunu yapay zekaya yaptırmak durumunda kaldım ve genel olarak gözlemleyip kontrol eden, yeni emirler veren kişi olarak yapay zekaların başındaydım. İkinci sorun olarak asıl alanımın typescript olması sebebi ve go dilinde herhangi bir tecrübem olmaması sebebiyle backendde bulunan kodları anlamaya çalışırken zorlandım.
 2. **Bilinen sınırlama:** Çok yoğun tek şube kilitte bekler; kısa yük testi bu sınırı bulmaz. Daha yüksek ölçek masa/adisyon kilitleri ve merge için sabit kilit sırası gerektirir. SSE polling kullanır. Oturum bellektedir, yenilemede tekrar giriş gerekir. QR self-order ve çevrimdışı PWA bonusları uygulanmadı. Demo hesapları/sıfırlama ucu üretim dağıtımına uygun değildir.
-3. **İki dizin:** `(order_id,id)` 9,006→0,385 ms; `(branch_id,id)` 6,470→0,104 ms. Yukarıdaki tablo, sentetik fixture sınırı ve EXPLAIN çıktısı kapsamı belirtir.
-4. **Düzeltilen yapay zekâ çıktısı:** Önceki çözüm iptalde sabit `150 g` fire ve `satış tutarı / 3` maliyet yazıyor, üretim öncesi iptalde stok iade etmiyordu. Sonrasında kalemin gerçek tüketimi kaydedilip aynen iade/fireye dönüştürüldü. 1,5 porsiyon İskender + ekstra tereyağında test edilen tüketim `270 g et + 180 g domates + 75 g tereyağı + 120 g yoğurt`; fire maliyeti **24.750 kuruş**. `STOCK` ikinci stok düşümü olmadığını da doğrular.
-5. **Tutarlılık kanıtı:** `docker compose --profile verify run --rm verify` gerçek PostgreSQL üzerinde eşzamanlı kalemler, eski versiyon, taşıma/birleştirme, ödeme ve rebuild çalıştırır. Son koşudan:
+3. **İki dizin:** `(order_id,id)` 9,006→0,385 ms; `(branch_id,id)` 6,470→0,104 ms. Yukarıdaki tablo EXPLAIN çıktısı kapsamı belirtir. İndexlenen dizin daha hızlı sonuç döndürür.
+4. **Düzeltilen yapay zekâ çıktısı:** İlk başta fire sisteminde `150 g` fire ve `satış tutarı / 3` maliyet yazıyor, üretim öncesi iptalde stok iade etmiyordu. Sonrasında yeni prompt ile bir buton daha ekleyip firenin tamamını iade eklendi. 1,5 porsiyon İskender + ekstra tereyağında test edilen tüketim `270 g et + 180 g domates + 75 g tereyağı + 120 g yoğurt`; fire maliyeti **24.750 kuruş**. `STOCK` ikinci stok düşümü olmadığını da doğrular.
+5. **Tutarlılık kanıtı:** `docker compose --profile verify run --rm verify` gerçek PostgreSQL üzerinde eşzamanlı kalemler, eski versiyon, taşıma/birleştirme, ödeme ve rebuild çalıştırır:
 
    ```text
    T-1         PASS  Eşzamanlı kalem, optimistic lock (409), taşıma, birleştirme, fire ve rebuild
@@ -128,9 +128,5 @@ Execution Time: 0.104 ms
    SNAPSHOT    PASS  20 eşzamanlı yazım sırasında 35 rebuild okuması tutarlı
    SONUÇ: Tüm 24 doğrulama kimliği PASS! / Exit code: 0
    ```
-
-## Teslim
-
-Yerel commitler aşamalıdır. Public GitHub deposu/push ve bağlantının [ankete](https://banukampus.bandirma.edu.tr/a/s/ZB76YDBA) gönderilmesi ayrıca yapılmalıdır. Son tarih **26 Ekim 2026 23.59**; teslimden sonra force push yapılmamalıdır.
 
 DDO Case Kodu: CEYLAN-cc6433

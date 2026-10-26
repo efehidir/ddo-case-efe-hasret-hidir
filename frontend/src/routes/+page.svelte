@@ -172,9 +172,29 @@
 		actionNotice = 'Oturum kapatıldı.';
 	}
 
-	function changeBranch() {
+	async function changeBranch() {
+		selectedBranchId = Number(selectedBranchId);
 		clearRoleData();
-		void refreshRoleData();
+		if (currentUser && refreshToken) {
+			try {
+				const pair = await apiFetch('/api/v1/auth/refresh', {
+					method: 'POST',
+					body: JSON.stringify({
+						refresh_token: refreshToken,
+						branch_id: selectedBranchId
+					})
+				});
+				accessToken = pair.access_token;
+				refreshToken = pair.refresh_token;
+				currentUser = { ...currentUser, branch_id: selectedBranchId };
+			} catch (err) {
+				globalError = err instanceof Error ? err.message : 'Şube değiştirilemedi.';
+				return;
+			}
+		}
+		await refreshRoleData();
+		const br = branches.find((b) => b.id === selectedBranchId);
+		actionNotice = `Aktif şube ${br ? `${br.code} • ${br.name}` : `#${selectedBranchId}`} olarak değiştirildi.`;
 	}
 
 	$effect(() => {
@@ -334,7 +354,7 @@
 		try {
 			const res = await apiFetch('/api/v1/auth/login', {
 				method: 'POST',
-				body: JSON.stringify({ email, password })
+				body: JSON.stringify({ email, password, branch_id: Number(selectedBranchId) })
 			});
 			accessToken = res.access_token;
 			refreshToken = res.refresh_token;
@@ -376,6 +396,13 @@
 			if (['waiter', 'cashier', 'chef', 'branch_manager', 'hq_manager'].includes(role)) {
 				const tbRes = await apiFetch(`/api/v1/tables?branch_id=${selectedBranchId}`);
 				tables = tbRes.tables || [];
+				const emptyTable = tables.find((t) => t.status === 'EMPTY');
+				if (
+					emptyTable &&
+					!tables.some((t) => t.status === 'EMPTY' && t.id === Number(moveTargetTableId))
+				) {
+					moveTargetTableId = emptyTable.id;
+				}
 				const occupied = tables.find((t) => t.status === 'OCCUPIED' && t.active_order_id > 0);
 				if (selectedOrder?.branch_id === selectedBranchId) await loadOrder(selectedOrder.id);
 				if (
@@ -720,19 +747,12 @@
 			</div>
 			<div class="branch-picker">
 				<label for="branch-select">Aktif Şube:</label>
-				<select
-					id="branch-select"
-					bind:value={selectedBranchId}
-					onchange={changeBranch}
-					disabled={currentUser?.role !== 'hq_manager'}
-				>
+				<select id="branch-select" bind:value={selectedBranchId} onchange={changeBranch}>
 					{#if branches.length === 0}
 						<option value={1}>BR-01 • Kadıköy Merkez Şube</option>
 					{:else}
 						{#each branches as b (b.id)}
-							{#if !currentUser || currentUser.role === 'hq_manager' || b.id === currentUser.branch_id}<option
-									value={b.id}>{b.code} • {b.name} ({b.city})</option
-								>{/if}
+							<option value={b.id}>{b.code} • {b.name} ({b.city})</option>
 						{/each}
 					{/if}
 				</select>
